@@ -1,0 +1,6 @@
+{
+  "name": "DulcePlay",
+  "description": "Premium futuristic multimedia player featuring advanced IPTV integration, high-fidelity reactive visualizations, and intelligent audio-video streaming recommendations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -114,11 +114,14 @@ fun DulceSearchOverlay(
     val isSearching by viewModel.isSearching.collectAsState()
     val searchHistory by viewModel.searchHistory.collectAsState()
     val suggestion by viewModel.searchSuggestion.collectAsState()
+    val localMediaList by viewModel.localMediaList.collectAsState()
+    val playlistsState by viewModel.userPlaylists.collectAsState()
+    val historyState by viewModel.playbackHistory.collectAsState()
 
     // Local lists for manual quick filtering
-    val localTracks = remember(query, viewModel.localMediaList.collectAsState().value) {
+    val localTracks = remember(query, localMediaList) {
         val tracksList = (viewModel.getFilteredMediaList().filter { it.mediaType == MediaType.AUDIO } +
-                viewModel.localMediaList.value).distinctBy { it.id }
+                localMediaList).distinctBy { it.id }
         if (query.length < 2) emptyList() else {
             tracksList.filter {
                 it.title.contains(query, ignoreCase = true) ||
@@ -149,19 +152,17 @@ fun DulceSearchOverlay(
         }
     }
 
-    val localPlaylists = remember(query, viewModel.userPlaylists.collectAsState().value) {
-        val playlists = viewModel.userPlaylists.value
+    val localPlaylists = remember(query, playlistsState) {
         if (query.length < 2) emptyList() else {
-            playlists.filter {
+            playlistsState.filter {
                 it.name.contains(query, ignoreCase = true)
             }
         }
     }
 
-    val localHistory = remember(query, viewModel.playbackHistory.collectAsState().value) {
-        val historyList = viewModel.playbackHistory.value
+    val localHistory = remember(query, historyState) {
         if (query.length < 2) emptyList() else {
-            historyList.filter {
+            historyState.filter {
                 it.title.contains(query, ignoreCase = true) ||
                 it.artist.contains(query, ignoreCase = true)
             }

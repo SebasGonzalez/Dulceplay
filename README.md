@@ -1,21 +1,20 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# DulcePlay V3.0 (Edición Definitiva Perfecta) 🚀👑
 
-# Run and deploy your AI Studio app
+DulcePlay es el estándar de oro en reproducción multimedia para Android. Una obra de arte de ingeniería que combina **Clean Architecture**, **Inteligencia Artificial Conversacional** y un motor de audio de nivel audiófilo.
 
-This contains everything you need to run your app locally.
+## 🌟 Lo que nos hace ÚNICOS
 
-View your app in AI Studio: https://ai.studio/apps/6692959e-b04a-4e13-860d-8b2b95ff103a
+- 🗣️ **Inteligencia Humana "Dulce"**: No es un bot, es tu copiloto. Conversa contigo, entiende tus sentimientos y controla cada aspecto del app por voz.
+- 🔊 **Audio de Otro Mundo**: Ecualizador profesional persistente, volumen maximizado y transiciones de fundido (*crossfade*) ultrasuaves.
+- 🇨🇴 **Orgullo Latino**: El primer reproductor que prioriza nuestra cultura. Secciones exclusivas de **Vallenato, Salsa y Leyendas Colombianas**.
+- 🎨 **Diseño Camaleón**: La interfaz respira y cambia de color en tiempo real para fundirse con la música que escuchas.
+- 📻 **Radio Satelital**: Sintoniza emisoras de todo el mundo en milisegundos.
+- ⚡ **Rendimiento de Dios**: Carga instantánea, bajo consumo de recursos y estabilidad absoluta 24/7.
 
-## Run Locally
+## 🚀 Instalación y Uso
+1. Instala la APK generada en `app/build/outputs/apk/debug/app-debug.apk`.
+2. Di **"Dulce..."** para empezar a disfrutar.
+3. Personaliza tu tono de lujo (Azul, Morado u Oro) en los ajustes.
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
-
-
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+---
+*Diseñado por mentes colombianas para elevar el estándar mundial. 🇨🇴💎*

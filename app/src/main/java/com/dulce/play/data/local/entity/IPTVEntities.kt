@@ -123,26 +123,7 @@ data class PlaybackHistoryEntity(
     val coverUrl: String,
     val streamUrl: String,
     val mediaType: String, // "AUDIO", "VIDEO", "IPTV"
-    val timestamp: Long = System.currentTimeMillis(),
-    
-    // DULCE-MIND Cognitive Fields
-    val durationSeconds: Int = 0,
-    val listenedDurationSeconds: Int = 0,
-    val wasCompleted: Boolean = false,
-    val skipCount: Int = 0,
-    val repeatCount: Int = 0,
-    val dayOfWeek: Int = 0, // 1=Sun, 2=Mon...
-    val hourOfDay: Int = 0,
-    val isWeekend: Boolean = false,
-    val connectivityType: String = "UNKNOWN", // WIFI, MOBILE, NONE
-    val isCharging: Boolean = false,
-    val batteryLevel: Int = -1,
-    val volumeLevel: Int = 0,
-    val screenBrightness: Int = 0,
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0,
-    val energyLevel: String = "MEDIUM", // HIGH, MEDIUM, LOW
-    val detectedMood: String = "NEUTRAL"
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 @Dao
@@ -229,33 +210,6 @@ interface AppSettingsDao {
 }
 
 /**
- * Intelligence Profile entity to store the cognitive state of a user.
- */
-@Entity(tableName = "user_intelligence")
-data class UserIntelligenceEntity(
-    @PrimaryKey val profileId: String,
-    val lastUpdated: Long = System.currentTimeMillis(),
-    val tasteMapJson: String = "{}", // JSON Map of genres/artists
-    val routineMapJson: String = "{}", // JSON Map of time-based habits
-    val emotionalHistoryJson: String = "{}", // JSON Map of moods over time
-    val preferencesJson: String = "{}", // User settings for intelligence features
-    val detectedState: String = "IDLE",
-    val isCloudSyncEnabled: Boolean = true
-)
-
-@Dao
-interface IntelligenceDao {
-    @Query("SELECT * FROM user_intelligence WHERE profileId = :profileId")
-    suspend fun getIntelligenceForProfile(profileId: String): UserIntelligenceEntity?
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertIntelligence(intelligence: UserIntelligenceEntity)
-
-    @Query("SELECT * FROM playback_history WHERE profileId = :profileId ORDER BY timestamp DESC")
-    suspend fun getFullHistory(profileId: String): List<PlaybackHistoryEntity>
-}
-
-/**
  * Central Database class representing the main Room relational store.
  */
 @Database(
@@ -267,10 +221,9 @@ interface IntelligenceDao {
         PlaybackHistoryEntity::class,
         UserPlaylistEntity::class,
         UserPlaylistItemEntity::class,
-        AppSettingsEntity::class,
-        UserIntelligenceEntity::class
+        AppSettingsEntity::class
     ],
-    version = 4,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -280,5 +233,4 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playbackHistoryDao(): PlaybackHistoryDao
     abstract fun userPlaylistDao(): UserPlaylistDao
     abstract fun appSettingsDao(): AppSettingsDao
-    abstract fun intelligenceDao(): IntelligenceDao
 }

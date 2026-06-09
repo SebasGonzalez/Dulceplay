@@ -17,7 +17,7 @@ object OAuthHelper {
         .build()
 
     // Redirect landing page URL
-    const val REDIRECT_URI = "com.dulce.play://callback"
+    const val REDIRECT_URI = "https://dulceplay.com/auth-callback"
 
     data class OAuthProfile(
         val email: String,

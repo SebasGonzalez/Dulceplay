@@ -16,22 +16,21 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.dulce.play.ui.theme.GlassWhite
-import com.dulce.play.ui.theme.GlassBorder
-import com.dulce.play.ui.theme.ElectricBlue
-import com.dulce.play.ui.theme.ElegantBlack
-import com.dulce.play.ui.theme.DeepPurple
-import com.dulce.play.ui.theme.ElectricBlue
-import com.dulce.play.ui.theme.DeepPurple
-import com.dulce.play.ui.theme.DeepPurple
-import com.dulce.play.ui.theme.ElegantBlack
+import com.dulce.play.ui.theme.CardGlassBg
+import com.dulce.play.ui.theme.CardGlassBorder
+import com.dulce.play.ui.theme.PrimaryNeon
+import com.dulce.play.ui.theme.MidnightNavy
+import com.dulce.play.ui.theme.ElectricViolet
+import com.dulce.play.ui.theme.AccentCyan
+import com.dulce.play.ui.theme.SophisticatedViolet
+import com.dulce.play.ui.theme.SecondaryPurple
+import com.dulce.play.ui.theme.CosmicBlack
 
 @Composable
 fun GlassBox(
@@ -44,8 +43,8 @@ fun GlassBox(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(cornerRadius))
-            .background(GlassWhite)
-            .border(borderWidth, GlassBorder, RoundedCornerShape(cornerRadius)),
+            .background(CardGlassBg)
+            .border(borderWidth, CardGlassBorder, RoundedCornerShape(cornerRadius)),
         contentAlignment = Alignment.Center,
         content = content
     )
@@ -55,7 +54,7 @@ fun GlassBox(
 fun ParticleField(
     particles: List<Pair<Float, Float>>,
     modifier: Modifier = Modifier,
-    color: Color = ElectricBlue.copy(alpha = 0.2f)
+    color: Color = AccentCyan.copy(alpha = 0.2f)
 ) {
     Canvas(modifier = modifier.fillMaxSize()) {
         val w = size.width
@@ -96,12 +95,12 @@ fun CosmicPlasmaBackground(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(ElegantBlack)
+            .background(CosmicBlack)
             .drawBehind {
                 // Sophisticated Dark Radial Glow 1 (Deep Violet Top Layer)
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(DeepPurple.copy(alpha = 0.55f), Color.Transparent),
+                        colors = listOf(SophisticatedViolet.copy(alpha = 0.55f), Color.Transparent),
                         center = Offset(size.width * 0.5f + pulseX, size.height * 0.25f)
                     ),
                     radius = size.width * 1.0f
@@ -110,7 +109,7 @@ fun CosmicPlasmaBackground(modifier: Modifier = Modifier) {
                 // Sophisticated Dark Radial Glow 2 (Atmospheric Rose Bottom Layer)
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(DeepPurple.copy(alpha = 0.42f), Color.Transparent),
+                        colors = listOf(SecondaryPurple.copy(alpha = 0.42f), Color.Transparent),
                         center = Offset(size.width * 0.15f - pulseX * 0.5f, size.height * 0.75f + pulseY)
                     ),
                     radius = size.width * 0.85f
@@ -184,8 +183,10 @@ fun ReflectiveVinylCover(
             drawRect(brush = artworkBackground)
 
             // Draw a spinning vinyl textured glass graphic
-            val discAngle = if (isPlaying) angle else 0f
-            rotate(discAngle) {
+            inset(width * 0.1f) {
+                val discAngle = if (isPlaying) angle else 0f
+                val rotationOffset = discAngle * (Math.PI.toFloat() / 180f)
+
                 // Vinyl outer ring
                 drawCircle(
                     color = Color.Black.copy(alpha = 0.85f),
@@ -203,7 +204,7 @@ fun ReflectiveVinylCover(
 
                 // Inner vinyl plate label
                 drawCircle(
-                    color = ElectricBlue.copy(alpha = 0.6f),
+                    color = PrimaryNeon.copy(alpha = 0.6f),
                     radius = width * 0.12f
                 )
 
@@ -221,7 +222,7 @@ fun ReflectiveVinylCover(
                         Color.White.copy(alpha = 0.0f),
                         Color.White.copy(alpha = 0.1f),
                         Color.White.copy(alpha = 0.0f),
-                        ElectricBlue.copy(alpha = 0.05f),
+                        AccentCyan.copy(alpha = 0.05f),
                         Color.White.copy(alpha = 0.0f)
                     ),
                     start = Offset(shimmerOffset - 100f, 0f),
@@ -240,7 +241,7 @@ fun ReflectiveVinylCover(
             ) {
                 Row(
                     modifier = Modifier
-                        .background(ElectricBlue.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
+                        .background(PrimaryNeon.copy(alpha = 0.85f), RoundedCornerShape(12.dp))
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

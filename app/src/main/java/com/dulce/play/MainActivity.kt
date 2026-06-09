@@ -6,7 +6,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,39 +16,42 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.draw.clip
-import coil.compose.AsyncImage
-import androidx.compose.ui.layout.ContentScale
-import com.dulce.play.domain.model.MediaType
-import androidx.compose.foundation.basicMarquee
 import com.dulce.play.ui.auth.AuthScreen
-import com.dulce.play.ui.auth.WelcomeScreen
 import com.dulce.play.ui.explore.ExploreScreen
 import com.dulce.play.ui.iptv.IPTVScreen
 import com.dulce.play.ui.library.LibraryScreen
 import com.dulce.play.ui.player.PlayerScreen
 import com.dulce.play.ui.player.PlayerViewModel
-import com.dulce.play.ui.components.*
+import com.dulce.play.ui.components.CosmicPlasmaBackground
+import com.dulce.play.ui.components.GlassBox
+import com.dulce.play.ui.components.ParticleField
+import com.dulce.play.ui.components.EasyModeScreen
 import com.dulce.play.ui.assistant.AssistantFloatingButton
-import com.dulce.play.ui.theme.*
+import com.dulce.play.ui.theme.MyApplicationTheme
+import com.dulce.play.ui.theme.PrimaryNeon
+import com.dulce.play.ui.theme.AccentCyan
+import com.dulce.play.ui.theme.Typography
 import com.dulce.play.ui.settings.SettingsScreen
-import com.dulce.play.ui.intelligence.IntelligentProfileScreen
-import androidx.activity.compose.BackHandler
+import com.dulce.play.ui.components.DulceSearchTopBar
+import com.dulce.play.ui.components.DulceSearchOverlay
 
-enum class DulceScreen { WELCOME, AUTH, INICIO, IPTV, PERFIL, CUENTA, PLAYER, LIBRARY }
+enum class DulceScreen {
+    AUTH, EXPLORE, IPTV, PLAYER, LIBRARY, SETTINGS
+}
 
 class MainActivity : ComponentActivity() {
+
     private val playerViewModel: PlayerViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,73 +60,120 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val activeTheme by playerViewModel.activeTheme.collectAsState()
-            val accentColor by playerViewModel.accentColor.collectAsState()
-            val isExtremeSaver by playerViewModel.extremeBatterySaver.collectAsState()
-            var currentScreen by remember { mutableStateOf(DulceScreen.WELCOME) }
-            val currentAccount by playerViewModel.currentAccount.collectAsState()
-            val brightness by playerViewModel.appBrightness.collectAsState()
-            val isEasyMode by playerViewModel.isEasyMode.collectAsState()
-            val particles by playerViewModel.particles.collectAsState()
-            var showExitDialog by remember { mutableStateOf(false) }
+            MyApplicationTheme(activeTheme = activeTheme) {
+                val particles by playerViewModel.particles.collectAsState()
+                var currentScreen by remember { mutableStateOf(DulceScreen.AUTH) }
+                val isPlaying by playerViewModel.isPlaying.collectAsState()
+                val currentMedia by playerViewModel.currentMedia.collectAsState()
+                val isEasyMode by playerViewModel.isEasyMode.collectAsState()
+                val isSearchOverlayActive by playerViewModel.searchOverlayActive.collectAsState()
 
-            BackHandler(enabled = true) { showExitDialog = true }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // --- Atmospheric Animated Plasma + Floating Particle Backdrops ---
+                    CosmicPlasmaBackground()
+                    ParticleField(
+                        particles = particles,
+                        color = AccentCyan.copy(alpha = 0.18f)
+                    )
 
-            if (showExitDialog) {
-                AlertDialog(
-                    onDismissRequest = { showExitDialog = false },
-                    title = { Text("¿Te vas? 😔", fontWeight = FontWeight.Black) },
-                    text = { Text("¿Quieres detener la música o prefieres que siga sonando en segundo plano?") },
-                    confirmButton = { TextButton(onClick = { finish() }) { Text("SALIR", color = Color.Red) } },
-                    dismissButton = { TextButton(onClick = { showExitDialog = false }) { Text("SEGUIR", color = accentColor) } },
-                    containerColor = ElegantBlack, titleContentColor = Color.White, textContentColor = Color.Gray
-                )
-            }
-
-            MyApplicationTheme(activeTheme = activeTheme, overrideAccent = accentColor, isExtremeSaver = isExtremeSaver) {
-                LaunchedEffect(currentAccount) {
-                    if (currentAccount == null) currentScreen = DulceScreen.WELCOME
-                    else if (currentScreen == DulceScreen.WELCOME || currentScreen == DulceScreen.AUTH) currentScreen = DulceScreen.INICIO
-                }
-                LaunchedEffect(brightness) { window.attributes = window.attributes.apply { screenBrightness = brightness } }
-
-                Box(modifier = Modifier.fillMaxSize().background(if (isExtremeSaver) Color.Black else ElegantBlack)) {
-                    if (!isExtremeSaver) {
-                        CosmicPlasmaBackground()
-                        ParticleField(particles = particles, color = accentColor.copy(alpha = 0.1f))
-                    }
-
+                    // --- Edge-to-Edge Safe Area Content Viewport ---
                     Scaffold(
                         containerColor = Color.Transparent,
-                        topBar = { if (currentScreen !in listOf(DulceScreen.WELCOME, DulceScreen.AUTH, DulceScreen.PLAYER) && !isEasyMode) DulceSearchTopBar(playerViewModel) },
+                        contentWindowInsets = WindowInsets.safeDrawing,
+                        modifier = Modifier.fillMaxSize(),
+                        topBar = {
+                            if (currentScreen != DulceScreen.AUTH && currentScreen != DulceScreen.PLAYER && !isEasyMode) {
+                                DulceSearchTopBar(viewModel = playerViewModel)
+                            }
+                        },
                         bottomBar = {
-                            if (currentScreen !in listOf(DulceScreen.WELCOME, DulceScreen.AUTH) && !isEasyMode) {
-                                Column {
-                                    if (currentScreen != DulceScreen.PLAYER) MiniPlayerControl(playerViewModel) { currentScreen = DulceScreen.PLAYER }
-                                    MainBottomNavBar(currentScreen) { currentScreen = it }
-                                }
+                            if (currentScreen != DulceScreen.AUTH && !isEasyMode) {
+                                FloatingBottomNavBar(
+                                    activeScreen = currentScreen,
+                                    isPlaying = isPlaying,
+                                    activeTitle = currentMedia.title,
+                                    activeArtist = currentMedia.artist,
+                                    onScreenSelected = { currentScreen = it }
+                                )
                             }
                         }
                     ) { innerPadding ->
-                        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                            AnimatedContent(targetState = currentScreen, transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(300)) }) { screen ->
-                                when (screen) {
-                                    DulceScreen.WELCOME -> WelcomeScreen({ currentScreen = DulceScreen.AUTH }, { currentScreen = DulceScreen.AUTH })
-                                    DulceScreen.AUTH -> AuthScreen(playerViewModel) { currentScreen = DulceScreen.INICIO }
-                                    DulceScreen.INICIO -> ExploreScreen(playerViewModel) { currentScreen = DulceScreen.PLAYER }
-                                    DulceScreen.IPTV -> IPTVScreen(playerViewModel) { currentScreen = DulceScreen.PLAYER }
-                                    DulceScreen.PERFIL -> IntelligentProfileScreen()
-                                    DulceScreen.CUENTA -> SettingsScreen(playerViewModel)
-                                    DulceScreen.PLAYER -> PlayerScreen(playerViewModel) { currentScreen = DulceScreen.INICIO }
-                                    DulceScreen.LIBRARY -> LibraryScreen(playerViewModel) { currentScreen = DulceScreen.PLAYER }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                        ) {
+                            if (currentScreen != DulceScreen.AUTH && isEasyMode) {
+                                EasyModeScreen(
+                                    viewModel = playerViewModel,
+                                    onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
+                                )
+                            } else {
+                                // High-performance screen crossfade transitions
+                                AnimatedContent(
+                                    targetState = currentScreen,
+                                    label = "screen_navigation",
+                                    transitionSpec = {
+                                        (fadeIn() + slideInVertically { it / 6 }) togetherWith (fadeOut() + slideOutVertically { it / 6 })
+                                    }
+                                ) { screen ->
+                                    when (screen) {
+                                        DulceScreen.AUTH -> {
+                                            AuthScreen(
+                                                viewModel = playerViewModel,
+                                                onAuthSuccess = { currentScreen = DulceScreen.EXPLORE }
+                                            )
+                                        }
+                                        DulceScreen.EXPLORE -> {
+                                            ExploreScreen(
+                                                viewModel = playerViewModel,
+                                                onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
+                                            )
+                                        }
+                                        DulceScreen.IPTV -> {
+                                            IPTVScreen(
+                                                viewModel = playerViewModel,
+                                                onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
+                                            )
+                                        }
+                                        DulceScreen.PLAYER -> {
+                                            PlayerScreen(
+                                                viewModel = playerViewModel,
+                                                onBack = { currentScreen = DulceScreen.EXPLORE }
+                                            )
+                                        }
+                                        DulceScreen.LIBRARY -> {
+                                            LibraryScreen(
+                                                viewModel = playerViewModel,
+                                                onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
+                                            )
+                                        }
+                                        DulceScreen.SETTINGS -> {
+                                            SettingsScreen(
+                                                viewModel = playerViewModel
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
 
-                    if (currentScreen !in listOf(DulceScreen.WELCOME, DulceScreen.AUTH)) {
-                        AssistantFloatingButton(playerViewModel, Modifier.align(Alignment.BottomEnd)) { currentScreen = DulceScreen.PLAYER }
+                    // --- Global floating companion orb ---
+                    if (currentScreen != DulceScreen.AUTH) {
+                        AssistantFloatingButton(
+                            viewModel = playerViewModel,
+                            modifier = Modifier.align(Alignment.BottomEnd)
+                        )
                     }
-                    if (playerViewModel.searchOverlayActive.collectAsState().value && !isEasyMode) DulceSearchOverlay(playerViewModel, { currentScreen = DulceScreen.PLAYER })
+
+                    // --- Global Dulce-Search Overlay ---
+                    if (isSearchOverlayActive && currentScreen != DulceScreen.AUTH && !isEasyMode) {
+                        DulceSearchOverlay(
+                            viewModel = playerViewModel,
+                            onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
+                        )
+                    }
                 }
             }
         }
@@ -129,40 +181,189 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainBottomNavBar(active: DulceScreen, onSelected: (DulceScreen) -> Unit) {
-    Box(modifier = Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 24.dp, vertical = 12.dp)) {
-        GlassBox(cornerRadius = 32.dp, modifier = Modifier.fillMaxWidth().height(68.dp).border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(32.dp))) {
-            Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceAround, verticalAlignment = Alignment.CenterVertically) {
-                NavBarItem(Icons.Rounded.Home, "Inicio", active == DulceScreen.INICIO) { onSelected(DulceScreen.INICIO) }
-                NavBarItem(Icons.Rounded.LiveTv, "IPTV", active == DulceScreen.IPTV) { onSelected(DulceScreen.IPTV) }
-                NavBarItem(Icons.Rounded.Psychology, "MIND", active == DulceScreen.PERFIL) { onSelected(DulceScreen.PERFIL) }
-                NavBarItem(Icons.Rounded.Person, "Cuenta", active == DulceScreen.CUENTA) { onSelected(DulceScreen.CUENTA) }
+fun FloatingBottomNavBar(
+    activeScreen: DulceScreen,
+    isPlaying: Boolean,
+    activeTitle: String,
+    activeArtist: String,
+    onScreenSelected: (DulceScreen) -> Unit
+) {
+    // Elegant floating glass bar spanning with clean paddings
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars) // Safeguards bottom gesture bars overlap
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // --- Mini Floating Stream Controller Overlay ---
+        AnimatedVisibility(
+            visible = activeScreen != DulceScreen.PLAYER,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut()
+        ) {
+            GlassBox(
+                cornerRadius = 16.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp)
+                    .clickable { onScreenSelected(DulceScreen.PLAYER) }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val angleOffset = remember { androidx.compose.animation.core.Animatable(0f) }
+
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .background(PrimaryNeon, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Rounded.MusicNote else Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = activeTitle,
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = activeArtist,
+                                color = AccentCyan,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isPlaying) {
+                            Text(
+                                text = "SONANDO",
+                                fontSize = 8.sp,
+                                fontFamily = Typography.labelMedium.fontFamily,
+                                color = PrimaryNeon,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = "Abrir reproductor completo",
+                            tint = Color.White.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // --- Core Navigation Ribbon ---
+        GlassBox(
+            cornerRadius = 24.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(68.dp)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NavBarItem(
+                    icon = Icons.Rounded.Explore,
+                    label = "Explorar",
+                    active = activeScreen == DulceScreen.EXPLORE,
+                    onClick = { onScreenSelected(DulceScreen.EXPLORE) }
+                )
+
+                NavBarItem(
+                    icon = Icons.Rounded.FeaturedPlayList,
+                    label = "Retro Player",
+                    active = activeScreen == DulceScreen.PLAYER,
+                    onClick = { onScreenSelected(DulceScreen.PLAYER) }
+                )
+
+                NavBarItem(
+                    icon = Icons.Rounded.LiveTv,
+                    label = "IPTV Sat",
+                    active = activeScreen == DulceScreen.IPTV,
+                    onClick = { onScreenSelected(DulceScreen.IPTV) }
+                )
+
+                NavBarItem(
+                    icon = Icons.Rounded.FolderCopy,
+                    label = "Biblioteca",
+                    active = activeScreen == DulceScreen.LIBRARY,
+                    onClick = { onScreenSelected(DulceScreen.LIBRARY) }
+                )
+
+                NavBarItem(
+                    icon = Icons.Rounded.Settings,
+                    label = "Ajustes",
+                    active = activeScreen == DulceScreen.SETTINGS,
+                    onClick = { onScreenSelected(DulceScreen.SETTINGS) }
+                )
             }
         }
     }
 }
 
 @Composable
-fun RowScope.NavBarItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
-    val color by animateColorAsState(if (active) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.5f))
-    Column(modifier = Modifier.weight(1f).clickable { onClick() }, horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(icon, null, tint = color, modifier = Modifier.size(24.dp))
-        Text(label, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-    }
-}
+fun RowScope.NavBarItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    active: Boolean,
+    onClick: () -> Unit
+) {
+    val scale by animateFloatAsState(
+        targetValue = if (active) 1.12f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "tab_scale"
+    )
 
-@Composable
-fun MiniPlayerControl(vm: PlayerViewModel, onClick: () -> Unit) {
-    val media by vm.currentMedia.collectAsState(); val playing by vm.isPlaying.collectAsState(); val prog by vm.playbackProgress.collectAsState()
-    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(60.dp).clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(0.8f)).border(1.dp, Color.White.copy(0.1f), RoundedCornerShape(20.dp)).clickable { onClick() }) {
-        Box(modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(prog).height(2.dp).background(MaterialTheme.colorScheme.primary))
-        Row(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(model = media.coverUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)))
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) { Text(media.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.basicMarquee()); Text(media.artist, color = Color.White.copy(0.6f), fontSize = 12.sp, maxLines = 1) }
-            IconButton(onClick = { vm.prev() }) { Icon(Icons.Rounded.SkipPrevious, null, tint = Color.White) }
-            IconButton(onClick = { vm.togglePlay() }, modifier = Modifier.size(36.dp).background(MaterialTheme.colorScheme.primary, CircleShape)) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = Color.Black) }
-            IconButton(onClick = { vm.next() }) { Icon(Icons.Rounded.SkipNext, null, tint = Color.White) }
-        }
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .clickable { onClick() }
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (active) PrimaryNeon else Color.White.copy(alpha = 0.45f),
+            modifier = Modifier
+                .size(22.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            color = if (active) Color.White else Color.White.copy(alpha = 0.45f),
+            fontSize = 9.sp,
+            fontWeight = if (active) FontWeight.ExtraBold else FontWeight.Medium
+        )
     }
 }

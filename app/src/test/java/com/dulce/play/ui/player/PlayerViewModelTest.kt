@@ -1,10 +1,10 @@
-package com.example.ui.player
+package com.dulce.play.ui.player
 
 import android.app.Application
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
-import com.example.domain.model.MediaType
-import com.example.domain.model.MediaItem
+import com.dulce.play.domain.model.MediaType
+import com.dulce.play.domain.model.MediaItem
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before

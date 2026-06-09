@@ -1,0 +1,6 @@
+{
+    "gradle.allowParallelRun": true,
+    "gradle.disableConfirmations": true,
+    "java.gradle.buildServer.openBuildOutput": "openOnBuildStart",
+    "gradle.javaDebug.cleanOutput": true
+}

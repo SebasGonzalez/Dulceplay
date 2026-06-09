@@ -2,24 +2,17 @@ package com.dulce.play.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// --- ELEGANT DARK REDESIGN PALETTE ---
+// Sophisticated Dark Premium Theme Palette
+val PrimaryNeon = Color(0xFFF43F5E)     // Sophisticated Deep Rose (#f43f5e)
+val SecondaryPurple = Color(0xFFBE185D) // Atmospheric Velvet Rose (#be185d)
+val AccentCyan = Color(0xFFFB7185)      // Premium Holographic Rose Accent (#fb7185)
+val ElectricViolet = Color(0xFF8B5CF6)  // Cyber Violet Accent (#8b5cf6)
+val SophisticatedViolet = Color(0xFF2E1065) // Deep Dark Violet Velvet (#2e1065)
 
-// Core Accents
-val ElectricBlue = Color(0xFF00E5FF)  // Vibrant Professional Blue
-val DeepPurple = Color(0xFF7C4DFF)    // Rich Elegant Purple
-val PremiumGold = Color(0xFFFFD700)   // High-end Metallic Gold
-
-// Neutral / Backgrounds
-val ElegantBlack = Color(0xFF000000)  // Absolute Black
-val DeepSurface = Color(0xFF0D0D0D)   // Soft Slate/Black surface
-val CardDark = Color(0xFF1A1A1A)      // Dark card surface
-
-// Glass Effects
-val GlassWhite = Color(0x0AFFFFFF)    // 4% White glass
-val GlassBorder = Color(0x1AFFFFFF)   // 10% White border
-
-// Text
-val TextPure = Color(0xFFFFFFFF)
-val TextMuted = Color(0xFFAAAAAA)
-val TextGold = PremiumGold
-val TextBlue = ElectricBlue
+val CosmicBlack = Color(0xFF050505)     // Matte Deep Pitch Black (#050505)
+val MidnightNavy = Color(0xFF0A0514)    // Sophisticated Dark Indigo-Black
+val CardGlassBg = Color(0x0EFFFFFF)     // High-transparency frosted glass sheet (6% white)
+val CardGlassBorder = Color(0x1BFFFFFF) // High-precision paper-thin translucent border (10% white)
+val TextPrimary = Color(0xFFFFFFFF)
+val TextSecondary = Color(0xFF94A3B8)   // Soft Slate Grey for metadata
+val LiveRed = Color(0xFFEF4444)         // Pure Crimson status indicator for IPTV

@@ -1,20 +1,26 @@
-# DulcePlay V3.0 (Edición Definitiva Perfecta) 🚀👑
+# DulcePlay V3.0 (Edición Maestra Restaurada) 🚀💎👑
 
-DulcePlay es el estándar de oro en reproducción multimedia para Android. Una obra de arte de ingeniería que combina **Clean Architecture**, **Inteligencia Artificial Conversacional** y un motor de audio de nivel audiófilo.
+DulcePlay es la cúspide de la ingeniería multimedia para Android. Diseñado para ofrecer una fidelidad de audio impecable, una interfaz visual de lujo y una inteligencia artificial que realmente te entiende.
 
-## 🌟 Lo que nos hace ÚNICOS
+## 🌟 Características Destacadas
 
-- 🗣️ **Inteligencia Humana "Dulce"**: No es un bot, es tu copiloto. Conversa contigo, entiende tus sentimientos y controla cada aspecto del app por voz.
-- 🔊 **Audio de Otro Mundo**: Ecualizador profesional persistente, volumen maximizado y transiciones de fundido (*crossfade*) ultrasuaves.
-- 🇨🇴 **Orgullo Latino**: El primer reproductor que prioriza nuestra cultura. Secciones exclusivas de **Vallenato, Salsa y Leyendas Colombianas**.
-- 🎨 **Diseño Camaleón**: La interfaz respira y cambia de color en tiempo real para fundirse con la música que escuchas.
-- 📻 **Radio Satelital**: Sintoniza emisoras de todo el mundo en milisegundos.
-- ⚡ **Rendimiento de Dios**: Carga instantánea, bajo consumo de recursos y estabilidad absoluta 24/7.
+- 🗣️ **Asistente Dulce (DULCE-MIND)**: Una IA conversacional (Google Vertex Gemini 1.5 Flash) que controla tu música, brillo, volumen y entiende tus emociones.
+- 🔊 **Motor de Reproducción Perfecto (00:00)**: Garantía absoluta de inicio en el segundo exacto cero. Sin saltos, sin cortes de muestra, solo música pura y completa.
+- 🌐 **Búsqueda Universal YouTube**: Integración total para encontrar cualquier canción o video oficial con la más alta fidelidad disponible en la red.
+- 🇨🇴 **Identidad Nacional**: Secciones dedicadas a los éxitos de **Colombia** y **México**, priorizando el folklore y el orgullo regional.
+- 🎨 **Estética Glass-Neon**: Interfaz ultramoderna basada en Glassmorphism con fondos de plasma dinámicos y un motor de colores camaleónico.
+- 📻 **IPTV Satelital**: Sintoniza canales de TV y emisoras de radio globales con carga instantánea.
 
-## 🚀 Instalación y Uso
-1. Instala la APK generada en `app/build/outputs/apk/debug/app-debug.apk`.
-2. Di **"Dulce..."** para empezar a disfrutar.
-3. Personaliza tu tono de lujo (Azul, Morado u Oro) en los ajustes.
+## 🛠️ Detalles Técnicos
+- **Lenguaje**: Kotlin + Jetpack Compose.
+- **Arquitectura**: Clean Architecture (MVVM) con Room para persistencia local.
+- **Audio**: Media3 / ExoPlayer con limpieza estricta de URLs.
+- **Seguridad**: Autenticación Firebase e historial cifrado.
+- **Optimización**: Entorno blindado en Disco D (SDK, Gradle, AVD) para máximo rendimiento.
+
+## 🚀 Despliegue
+La APK final master se encuentra en:  
+`app/build/outputs/apk/debug/app-debug.apk`
 
 ---
-*Diseñado por mentes colombianas para elevar el estándar mundial. 🇨🇴💎*
+*Transformando un simple reproductor en una entidad digital de lujo. 🇨🇴💎✨*

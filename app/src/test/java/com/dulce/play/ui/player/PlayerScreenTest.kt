@@ -1,10 +1,10 @@
-package com.example.ui.player
+package com.dulce.play.ui.player
 
 import android.app.Application
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
-import com.example.ui.theme.MyApplicationTheme
+import com.dulce.play.ui.theme.MyApplicationTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

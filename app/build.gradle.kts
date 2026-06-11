@@ -19,6 +19,10 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    
+    ndk {
+      abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+    }
   }
 
   signingConfigs {
@@ -55,6 +59,11 @@ android {
   buildFeatures {
     compose = true
     buildConfig = true
+  }
+  packaging {
+    resources {
+      excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
@@ -111,6 +120,11 @@ dependencies {
   implementation(libs.okhttp)
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
+  
+  // YOUTUBE-DL EXTRACTOR
+  implementation("com.github.yausername.youtubedl-android:library:0.14.0")
+  implementation("com.github.yausername.youtubedl-android:ffmpeg:0.14.0")
+
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

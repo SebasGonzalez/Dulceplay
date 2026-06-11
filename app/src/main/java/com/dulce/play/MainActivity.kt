@@ -59,121 +59,116 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            val activeTheme by playerViewModel.activeTheme.collectAsState()
-            MyApplicationTheme(activeTheme = activeTheme) {
-                val particles by playerViewModel.particles.collectAsState()
-                var currentScreen by remember { mutableStateOf(DulceScreen.AUTH) }
-                val isPlaying by playerViewModel.isPlaying.collectAsState()
-                val currentMedia by playerViewModel.currentMedia.collectAsState()
-                val isEasyMode by playerViewModel.isEasyMode.collectAsState()
-                val isSearchOverlayActive by playerViewModel.searchOverlayActive.collectAsState()
+            MainContent()
+        }
+    }
 
-                Box(modifier = Modifier.fillMaxSize()) {
-                    // --- Atmospheric Animated Plasma + Floating Particle Backdrops ---
-                    CosmicPlasmaBackground()
-                    ParticleField(
-                        particles = particles,
-                        color = AccentCyan.copy(alpha = 0.18f)
-                    )
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun MainContent() {
+        val activeTheme by playerViewModel.activeTheme.collectAsState()
+        MyApplicationTheme(activeTheme = activeTheme) {
+            val particles by playerViewModel.particles.collectAsState()
+            var currentScreen by remember { mutableStateOf(DulceScreen.AUTH) }
+            val isPlaying by playerViewModel.isPlaying.collectAsState()
+            val currentMedia by playerViewModel.currentMedia.collectAsState()
+            val isEasyMode by playerViewModel.isEasyMode.collectAsState()
+            val isSearchOverlayActive by playerViewModel.searchOverlayActive.collectAsState()
 
-                    // --- Edge-to-Edge Safe Area Content Viewport ---
-                    Scaffold(
-                        containerColor = Color.Transparent,
-                        contentWindowInsets = WindowInsets.safeDrawing,
-                        modifier = Modifier.fillMaxSize(),
-                        topBar = {
-                            if (currentScreen != DulceScreen.AUTH && currentScreen != DulceScreen.PLAYER && !isEasyMode) {
-                                DulceSearchTopBar(viewModel = playerViewModel)
-                            }
-                        },
-                        bottomBar = {
-                            if (currentScreen != DulceScreen.AUTH && !isEasyMode) {
-                                FloatingBottomNavBar(
-                                    activeScreen = currentScreen,
-                                    isPlaying = isPlaying,
-                                    activeTitle = currentMedia.title,
-                                    activeArtist = currentMedia.artist,
-                                    onScreenSelected = { currentScreen = it }
-                                )
-                            }
+            Box(modifier = Modifier.fillMaxSize()) {
+                // --- Atmospheric Animated Plasma + Floating Particle Backdrops ---
+                CosmicPlasmaBackground()
+                ParticleField(
+                    particles = particles,
+                    color = AccentCyan.copy(alpha = 0.18f)
+                )
+
+                // --- Edge-to-Edge Safe Area Content Viewport ---
+                Scaffold(
+                    containerColor = Color.Transparent,
+                    contentWindowInsets = WindowInsets.safeDrawing,
+                    modifier = Modifier.fillMaxSize(),
+                    topBar = {
+                        if (currentScreen != DulceScreen.AUTH && currentScreen != DulceScreen.PLAYER && !isEasyMode) {
+                            DulceSearchTopBar(viewModel = playerViewModel)
                         }
-                    ) { innerPadding ->
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(innerPadding)
-                        ) {
-                            if (currentScreen != DulceScreen.AUTH && isEasyMode) {
-                                EasyModeScreen(
-                                    viewModel = playerViewModel,
-                                    onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
-                                )
-                            } else {
-                                // High-performance screen crossfade transitions
-                                AnimatedContent(
-                                    targetState = currentScreen,
-                                    label = "screen_navigation",
-                                    transitionSpec = {
-                                        (fadeIn() + slideInVertically { it / 6 }) togetherWith (fadeOut() + slideOutVertically { it / 6 })
+                    },
+                    bottomBar = {
+                        if (currentScreen != DulceScreen.AUTH && !isEasyMode) {
+                            FloatingBottomNavBar(
+                                activeScreen = currentScreen,
+                                isPlaying = isPlaying,
+                                activeTitle = currentMedia.title,
+                                activeArtist = currentMedia.artist,
+                                onScreenSelected = { currentScreen = it }
+                            )
+                        }
+                    }
+                ) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        if (isEasyMode) {
+                            EasyModeScreen(
+                                viewModel = playerViewModel,
+                                onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
+                            )
+                        } else {
+                            Crossfade(targetState = currentScreen, label = "screen_transition") { screen ->
+                                when (screen) {
+                                    DulceScreen.AUTH -> {
+                                        AuthScreen(
+                                            viewModel = playerViewModel,
+                                            onAuthSuccess = { currentScreen = DulceScreen.EXPLORE }
+                                        )
                                     }
-                                ) { screen ->
-                                    when (screen) {
-                                        DulceScreen.AUTH -> {
-                                            AuthScreen(
-                                                viewModel = playerViewModel,
-                                                onAuthSuccess = { currentScreen = DulceScreen.EXPLORE }
-                                            )
-                                        }
-                                        DulceScreen.EXPLORE -> {
-                                            ExploreScreen(
-                                                viewModel = playerViewModel,
-                                                onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
-                                            )
-                                        }
-                                        DulceScreen.IPTV -> {
-                                            IPTVScreen(
-                                                viewModel = playerViewModel,
-                                                onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
-                                            )
-                                        }
-                                        DulceScreen.PLAYER -> {
-                                            PlayerScreen(
-                                                viewModel = playerViewModel,
-                                                onBack = { currentScreen = DulceScreen.EXPLORE }
-                                            )
-                                        }
-                                        DulceScreen.LIBRARY -> {
-                                            LibraryScreen(
-                                                viewModel = playerViewModel,
-                                                onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
-                                            )
-                                        }
-                                        DulceScreen.SETTINGS -> {
-                                            SettingsScreen(
-                                                viewModel = playerViewModel
-                                            )
-                                        }
+                                    DulceScreen.EXPLORE -> {
+                                        ExploreScreen(
+                                            viewModel = playerViewModel,
+                                            onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
+                                        )
+                                    }
+                                    DulceScreen.IPTV -> {
+                                        IPTVScreen(
+                                            viewModel = playerViewModel,
+                                            onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
+                                        )
+                                    }
+                                    DulceScreen.PLAYER -> {
+                                        PlayerScreen(
+                                            viewModel = playerViewModel,
+                                            onBack = { currentScreen = DulceScreen.EXPLORE }
+                                        )
+                                    }
+                                    DulceScreen.LIBRARY -> {
+                                        LibraryScreen(
+                                            viewModel = playerViewModel,
+                                            onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
+                                        )
+                                    }
+                                    DulceScreen.SETTINGS -> {
+                                        SettingsScreen(
+                                            viewModel = playerViewModel
+                                        )
                                     }
                                 }
                             }
                         }
                     }
+                }
 
-                    // --- Global floating companion orb ---
-                    if (currentScreen != DulceScreen.AUTH) {
-                        AssistantFloatingButton(
-                            viewModel = playerViewModel,
-                            modifier = Modifier.align(Alignment.BottomEnd)
-                        )
-                    }
+                // --- Global floating companion orb ---
+                if (currentScreen != DulceScreen.AUTH) {
+                    AssistantFloatingButton(
+                        viewModel = playerViewModel,
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                    )
+                }
 
-                    // --- Global Dulce-Search Overlay ---
-                    if (isSearchOverlayActive && currentScreen != DulceScreen.AUTH && !isEasyMode) {
-                        DulceSearchOverlay(
-                            viewModel = playerViewModel,
-                            onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
-                        )
-                    }
+                // --- Global Dulce-Search Overlay ---
+                if (isSearchOverlayActive && currentScreen != DulceScreen.AUTH && !isEasyMode) {
+                    DulceSearchOverlay(
+                        viewModel = playerViewModel,
+                        onNavigateToPlayer = { currentScreen = DulceScreen.PLAYER }
+                    )
                 }
             }
         }
@@ -216,8 +211,6 @@ fun FloatingBottomNavBar(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val angleOffset = remember { androidx.compose.animation.core.Animatable(0f) }
-
                     Row(
                         modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically

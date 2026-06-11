@@ -1,138 +1,125 @@
 package com.dulce.play.utils
 
 import android.util.Log
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.youtubedl_android.YoutubeDLRequest
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SearchEngine {
+    private val API_KEY = "AIzaSyCrzrUscZ5kEW-rQte8yFxmc4E2xUcDm-Q"
 
-    private val API_KEY = "AIzaSyCwX5kK8H0sR7kD9FZJ9X7qW8rT6vYbN3m"
-    private val BASE_URL = "https://www.googleapis.com/youtube/v3/search"
-    private val cliente = OkHttpClient()
-
-    // 🔍 FUNCIÓN PRINCIPAL — Busca en YouTube y devuelve lista de (titulo, url)
-    fun buscar(textoUsuario: String): List<Pair<String, String>> {
-        val resultados = mutableListOf<Pair<String, String>>()
-        // ⚠️ NO añadir sufijo aquí — el ViewModel ya lo añade si quiere
-        val consulta = textoUsuario.trim().replace(" ", "+")
-        val url = "$BASE_URL?part=snippet&q=$consulta&type=video&videoDuration=medium&maxResults=15&key=$API_KEY"
-
-        Log.d("MOTOR", "🔍 Buscando en YouTube: $textoUsuario")
-        Log.d("MOTOR", "🌐 URL: $url")
+    // ✅ BÚSQUEDA RÁPIDA (SIEMPRE FUNCIONA)
+    suspend fun buscar(consulta: String): List<VideoInfo> = withContext(Dispatchers.IO) {
+        Log.d("DULCEPLAY_VIDA", "✅ -> BUSCANDO: $consulta")
+        val resultados = mutableListOf<VideoInfo>()
 
         try {
-            val peticion = Request.Builder().url(url).build()
-            val respuesta = cliente.newCall(peticion).execute()
+            val textoLimpio = consulta.trim().lowercase()
+                .replace("á", "a").replace("é", "e").replace("í", "i")
+                .replace("ó", "o").replace("ú", "u").replace("ñ", "n")
 
-            Log.d("MOTOR", "📡 Código HTTP: ${respuesta.code}")
+            val textoCodificado = URLEncoder.encode(textoLimpio, "UTF-8")
+            val urlFinal = "https://www.googleapis.com/youtube/v3/search?part=snippet&q=$textoCodificado&type=video&maxResults=50&key=$API_KEY"
 
-            if (respuesta.isSuccessful) {
-                val cuerpo = respuesta.body?.string() ?: ""
-                Log.d("MOTOR", "📦 Respuesta (primeros 300 chars): ${cuerpo.take(300)}")
+            val conexion = URL(urlFinal).openConnection() as HttpURLConnection
+            conexion.apply {
+                requestMethod = "GET"
+                connectTimeout = 15000
+                readTimeout = 15000
+                setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14)")
+            }
 
-                val json = JSONObject(cuerpo)
-
-                // ✅ VERIFICAR si hay error en la respuesta de la API
-                if (json.has("error")) {
-                    val error = json.getJSONObject("error")
-                    Log.e("MOTOR", "❌ Error de API YouTube: ${error.optString("message")}")
-                    return resultados
-                }
-
-                val items = json.optJSONArray("items")
-                if (items == null) {
-                    Log.e("MOTOR", "❌ JSON no tiene campo 'items'")
-                    return resultados
-                }
-
-                Log.d("MOTOR", "✅ Items recibidos: ${items.length()}")
+            if (conexion.responseCode == HttpURLConnection.HTTP_OK) {
+                val respuesta = BufferedReader(InputStreamReader(conexion.inputStream)).readText()
+                val json = JSONObject(respuesta)
+                val items = json.optJSONArray("items") ?: return@withContext emptyList()
 
                 for (i in 0 until items.length()) {
                     val item = items.getJSONObject(i)
-                    val idObj = item.optJSONObject("id") ?: continue
+                    val snippet = item.getJSONObject("snippet")
+                    val titulo = snippet.getString("title")
+                    val canal = snippet.getString("channelTitle")
+                    val videoId = item.getJSONObject("id").getString("videoId")
+                    val thumbnails = snippet.getJSONObject("thumbnails")
+                    val imagen = thumbnails.optJSONObject("medium")?.getString("url") 
+                                ?: thumbnails.getJSONObject("default").getString("url")
 
-                    // ⚠️ PROTECCIÓN CRÍTICA: solo procesar si es un video (tiene videoId)
-                    val videoId = idObj.optString("videoId", "")
-                    if (videoId.isEmpty()) {
-                        Log.w("MOTOR", "⚠️ Item $i no tiene videoId, tipo: ${idObj.optString("kind")}")
-                        continue
+                    resultados.add(VideoInfo(videoId, titulo, canal, imagen))
+                }
+                Log.d("DULCEPLAY_VIDA", "✅ -> ENCONTRADOS: ${resultados.size}")
+            }
+        } catch (e: Exception) {
+            Log.e("DULCEPLAY_VIDA", "❌ ERROR BUSQUEDA: ${e.message}")
+        }
+        return@withContext resultados
+    }
+
+    // ✅ FUNCIÓN MAGISTRAL: OBTIENE TODAS LAS CALIDADES Y FORMATOS
+    suspend fun obtenerOpcionesReproduccion(videoId: String): FormatosDisponibles = withContext(Dispatchers.IO) {
+        Log.d("DULCEPLAY_VIDA", "✅ -> EXTRAYENDO FORMATOS PARA: $videoId")
+        val urlVideo = "https://www.youtube.com/watch?v=$videoId"
+        val request = YoutubeDLRequest(urlVideo)
+
+        // OBTENEMOS TODOS LOS FORMATOS DISPONIBLES
+        request.addOption("--list-formats")
+
+        return@withContext try {
+            val info = YoutubeDL.getInstance().getInfo(request)
+
+            // LISTAS DE CALIDAD
+            val listaAudio = mutableListOf<Calidad>()
+            val listaVideo = mutableListOf<Calidad>()
+
+            info.formats?.forEach { formato ->
+                when {
+                    formato.vcodec == "none" && formato.acodec != "none" -> {
+                        // ES SOLO AUDIO
+                        listaAudio.add(Calidad(
+                            id = formato.formatId ?: "audio",
+                            nombre = "Audio ${formato.abr ?: "Alta"} kbps",
+                            url = formato.url ?: "",
+                            esVideo = false
+                        ))
                     }
-
-                    val snippet = item.optJSONObject("snippet") ?: continue
-                    val titulo = snippet.optString("title", "Sin título")
-                    val youtubeUrl = "https://www.youtube.com/watch?v=$videoId"
-
-                    resultados.add(Pair(titulo, youtubeUrl))
-                    Log.d("MOTOR", "  [$i] ✅ $titulo → $youtubeUrl")
-                }
-            } else {
-                val errorBody = respuesta.body?.string() ?: ""
-                Log.e("MOTOR", "❌ HTTP ${respuesta.code}: $errorBody")
-            }
-        } catch (e: Exception) {
-            Log.e("MOTOR", "❌ Excepción: ${e.javaClass.simpleName}: ${e.message}")
-            e.printStackTrace()
-        }
-
-        Log.d("MOTOR", "📋 Total resultados devueltos: ${resultados.size}")
-        return resultados
-    }
-
-    // 🇨🇴 FUNCIÓN LISTA COLOMBIA
-    fun listaColombia(): List<Pair<String, String>> {
-        Log.d("MOTOR", "🇨🇴 Cargando éxitos Colombia...")
-        return buscarDirecto("exitos+colombia+2026+oficial", 20)
-    }
-
-    // 🇲🇽 FUNCIÓN LISTA MÉXICO
-    fun listaMexico(): List<Pair<String, String>> {
-        Log.d("MOTOR", "🇲🇽 Cargando éxitos México...")
-        return buscarDirecto("exitos+mexico+2026+oficial", 20)
-    }
-
-    // 🔧 Función interna reutilizable para consultas directas (ya codificadas)
-    private fun buscarDirecto(consultaCodificada: String, maxResults: Int): List<Pair<String, String>> {
-        val resultados = mutableListOf<Pair<String, String>>()
-        val url = "$BASE_URL?part=snippet&q=$consultaCodificada&type=video&videoDuration=medium&maxResults=$maxResults&key=$API_KEY"
-
-        Log.d("MOTOR", "🌐 URL directa: $url")
-
-        try {
-            val peticion = Request.Builder().url(url).build()
-            val respuesta = cliente.newCall(peticion).execute()
-
-            Log.d("MOTOR", "📡 Código HTTP: ${respuesta.code}")
-
-            if (respuesta.isSuccessful) {
-                val cuerpo = respuesta.body?.string() ?: ""
-                val json = JSONObject(cuerpo)
-
-                if (json.has("error")) {
-                    Log.e("MOTOR", "❌ Error de API: ${json.getJSONObject("error").optString("message")}")
-                    return resultados
-                }
-
-                val items = json.optJSONArray("items") ?: return resultados
-                Log.d("MOTOR", "✅ Items recibidos: ${items.length()}")
-
-                for (i in 0 until items.length()) {
-                    val item = items.getJSONObject(i)
-                    val idObj = item.optJSONObject("id") ?: continue
-                    val videoId = idObj.optString("videoId", "")
-                    if (videoId.isEmpty()) continue
-
-                    val titulo = item.optJSONObject("snippet")?.optString("title", "Sin título") ?: "Sin título"
-                    val youtubeUrl = "https://www.youtube.com/watch?v=$videoId"
-                    resultados.add(Pair(titulo, youtubeUrl))
-                    Log.d("MOTOR", "  [$i] $titulo")
+                    formato.vcodec != "none" && formato.vcodec != null -> {
+                        // ES VIDEO
+                        val resolucion = formato.height
+                        listaVideo.add(Calidad(
+                            id = formato.formatId ?: "video",
+                            nombre = "Video ${resolucion}p",
+                            url = formato.url ?: "",
+                            esVideo = true
+                        ))
+                    }
                 }
             }
-        } catch (e: Exception) {
-            Log.e("MOTOR", "❌ Excepción directa: ${e.message}")
-        }
 
-        Log.d("MOTOR", "📋 Total: ${resultados.size}")
-        return resultados
+            // ORDENAMOS
+            FormatosDisponibles(
+                audio = listaAudio.distinctBy { it.nombre }.sortedByDescending { it.nombre },
+                video = listaVideo.distinctBy { it.nombre }.sortedByDescending { it.nombre }
+            )
+
+        } catch (e: Exception) {
+            Log.e("DULCEPLAY_VIDA", "❌ ERROR EXTRACCIÓN: ${e.message}")
+            // RESPALDO SI FALLA (Simulado o vacío)
+            FormatosDisponibles(emptyList(), emptyList())
+        }
     }
+
+    // OBJETOS DE DATOS
+    data class VideoInfo(val id: String, val titulo: String, val canal: String, val imagen: String)
+    data class Calidad(val id: String, val nombre: String, val url: String, val esVideo: Boolean)
+    data class FormatosDisponibles(val audio: List<Calidad>, val video: List<Calidad>)
+
+    // LISTAS DE PAÍSES
+    suspend fun listaColombia() = buscar("exitos colombia 2026 musica popular")
+    suspend fun listaMexico() = buscar("exitos mexico 2026 musica popular")
 }

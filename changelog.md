@@ -2,23 +2,34 @@
 
 ---
 
-## 🛠️ ETAPA 18: Restauración de Infraestructura y Estabilidad Total (V3.0 Final Master) 💎🚀
-*   **Restauración del Motor de Búsqueda 🌐**:
-    *   **Conexión YouTube API**: Se ha reconectado el `PlayerViewModel` con `SearchEngine.kt`. Ahora las búsquedas de música y video traen resultados reales y completos.
-    *   **Hits Regionales**: Las secciones de Colombia 🇨🇴, México 🇲🇽 y Global 🌎 vuelven a cargar contenido actualizado automáticamente.
-    *   **Buscador Inteligente**: El botón de "Enviar" del teclado y los filtros de búsqueda (Audio/Video) funcionan de forma inmediata.
-*   **Arreglo de Reproducción (Iron Rule) 🔊**:
-    *   **Inicio en 00:00 Forzado**: Eliminado el bug de streaming que saltaba los primeros segundos. Flujo: `Stop` → `Clear` → `Prepare` → `SeekTo(0)`.
-    *   **Limpieza de URLs**: Implementada limpieza profunda de enlaces para evitar que parámetros de YouTube alteren el inicio de la pista.
-*   **Estabilidad de Código y Compilación 🛠️**:
-    *   **Resolución de Referencias**: Corregidos todos los errores de "Unresolved reference" y desajustes de parámetros en `AuthScreen`, `IPTVScreen` y `SettingsScreen`.
-    *   **Centralización de Enums**: Los estados de Temas, Búsqueda y Casting ahora están en una única ubicación para evitar conflictos de compilación.
-    *   **Servicio de Audio**: Reestablecido el `PlaybackService` para asegurar que la reproducción no se detenga al cerrar la app.
-*   **Diseño de Lujo Restaurado 🎨**:
-    *   **Vuelve el Efecto Glass**: Recuperadas las transparencias y bordes de cristal en todas las tarjetas y buscadores.
-    *   **Fondo Dinámico**: Reintegrado el campo de partículas y los fondos de plasma en la pantalla principal.
-*   **Optimización de Hardware 💾**:
-    *   **Blindaje Disco D**: Redirección total de SDKs, cachés y Emuladores (AVD) al disco secundario para evitar la saturación del disco C:.
+## 🛠️ ETAPA 22: El Salto Profesional - ExoPlayer & YouTube-DL (V3.4) 🎥🔊🔥
+*   **Motor de Reproducción de Élite 🔊**:
+    *   **Integración ExoPlayer (Media3)**: Migración total al reproductor estándar de la industria. Eliminación definitiva de pausas infinitas y errores de carga.
+    *   **Controles Nativos**: Play/Pausa, barra de tiempo interactiva y visualización de progreso real sincronizada.
+*   **Extracción de Enlaces Maestra 🧬**:
+    *   **YouTube-DL para Android**: Implementación de la librería `youtubedl-android` para obtener enlaces directos de alta velocidad desde los servidores de Google.
+    *   **Selección de Calidad**: El usuario ahora puede elegir entre **Solo Audio** (ahorro de datos y alta fidelidad) o **Video** (desde 144p hasta 1080p).
+*   **Arquitectura y Estabilidad 🏗️**:
+    *   **Diferimiento de Carga**: La búsqueda es instantánea (trae IDs); la conversión a URL reproducible ocurre solo al dar clic, optimizando el ancho de banda.
+    *   **Restauración de Estado**: Sincronización de todos los módulos (Perfiles, IPTV, Biblioteca) con el nuevo motor de reproducción.
+*   **Compilación V3.4 🚀**:
+    *   Ajustes en `build.gradle.kts` para soporte NDK y empaquetado de recursos. Build exitoso y estable.
 
 ---
-*Estado del Proyecto: PERFECCIÓN TÉCNICA Y ESTÉTICA ALCANZADA. APK V3.0 DEFINITIVA GENERADA.*
+
+## 🛠️ ETAPA 21: Optimización de Búsqueda y Flujo de Datos (V3.3.3) ⚡🔍
+*   **Búsqueda Ultra-Rápida**: Separación de los procesos de búsqueda y conversión. La lista de resultados aparece instantáneamente.
+*   **Conversión On-Demand**: La obtención de la URL reproducible se movió al momento de la selección, evitando bloqueos por peticiones masivas.
+*   **Fallback de Conversión**: Implementación de un sistema híbrido (Regex + yt1s API) para garantizar que el enlace siempre funcione.
+
+---
+
+## 🛠️ ETAPA 20: Activación Master de YouTube y Conexión Final (V3.2) 🌐💎
+*   **Configuración de API de Google 🔑**:
+    *   **Clave Oficial**: Implementada la API Key definitiva en `SearchEngine.kt`.
+    *   **Filtrado por Categoría**: Búsquedas restringidas a la categoría "Música" (ID 10).
+*   **Enlace de Datos UI/VM 🧬**: Vinculación total de `_onlineSearchResults` con el motor de búsqueda.
+*   **Lógica de Interfaz Blindada 🎨**: Resultados reales con miniaturas y metadatos desde la nube.
+
+---
+*Estado del Proyecto: V3.4 COMPLETADA. REPRODUCCIÓN PROFESIONAL ACTIVA.*

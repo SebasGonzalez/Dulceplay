@@ -108,8 +108,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val onlineSearchResults: StateFlow<List<com.dulce.play.domain.model.MediaItem>> = _onlineSearchResults.asStateFlow()
     val resultadosBusqueda: StateFlow<List<com.dulce.play.domain.model.MediaItem>> = _onlineSearchResults.asStateFlow()
 
-    private val _formatosDisponibles = MutableStateFlow<FormatosDisponibles?>(null)
-    val formatosDisponibles: StateFlow<FormatosDisponibles?> = _formatosDisponibles.asStateFlow()
+    private val _listaCalidades = MutableStateFlow<List<Calidad>>(emptyList())
+    val listaCalidades: StateFlow<List<Calidad>> = _listaCalidades.asStateFlow()
 
     private val _shuffleEnabled = MutableStateFlow(false)
     val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled.asStateFlow()
@@ -251,22 +251,39 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun cargarOpcionesParaReproducir(videoId: String) {
         viewModelScope.launch {
             _isSearching.value = true
-            val opciones = motor.obtenerOpcionesReproduccion(videoId)
-            _formatosDisponibles.value = opciones
+            _listaCalidades.value = emptyList() // Limpiar opciones anteriores mientras carga
+            _mediaError.value = null
+            Log.d("DULCEPLAY_VIDA", "🔍 Extrayendo streams para: $videoId")
+            val opciones = motor.obtenerEnlaces(videoId)
+            _listaCalidades.value = opciones
             _isSearching.value = false
+            if (opciones.isEmpty()) {
+                Log.e("DULCEPLAY_VIDA", "❌ Sin streams disponibles para $videoId")
+                _mediaError.value = "No se pudieron obtener enlaces. Comprueba tu conexión."
+            } else {
+                Log.d("DULCEPLAY_VIDA", "✅ ${opciones.size} opciones cargadas para $videoId")
+            }
         }
     }
 
-    fun reproducirConCalidad(urlEnlace: String) {
+    fun reproducirSeleccionado(urlEnlace: String) {
         if (urlEnlace.isBlank()) return
-        try {
-            Log.d("DULCEPLAY_VIDA", "✅ -> REPRODUCIENDO URL: $urlEnlace")
-            val mediaItem = MediaItem.fromUri(urlEnlace)
-            exoPlayer.setMediaItem(mediaItem)
-            exoPlayer.prepare()
-            exoPlayer.play()
-        } catch (e: Exception) {
-            Log.e("DULCEPLAY_VIDA", "❌ ERROR REPRODUCCIÓN: ${e.message}")
+        viewModelScope.launch {
+            try {
+                Log.d("DULCEPLAY_VIDA", "▶️ Reproduciendo: ${urlEnlace.take(80)}...")
+                _mediaError.value = null
+                // Construir MediaItem con la URL directa
+                // Nota: Los streams de Invidious/googlevideo son MP4/WebM directos
+                val mediaItem = MediaItem.fromUri(android.net.Uri.parse(urlEnlace))
+                exoPlayer.stop()
+                exoPlayer.clearMediaItems()
+                exoPlayer.setMediaItem(mediaItem)
+                exoPlayer.prepare()
+                exoPlayer.play()
+            } catch (e: Exception) {
+                Log.e("DULCEPLAY_VIDA", "❌ ERROR AL REPRODUCIR: ${e.message}")
+                _mediaError.value = "Error al iniciar reproducción: ${e.message}"
+            }
         }
     }
 
@@ -277,12 +294,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun playMedia(m: com.dulce.play.domain.model.MediaItem) {
         if (m.streamUrl.isBlank()) return
         _currentMedia.value = m
-        // Si la URL no empieza con http, probablemente sea un videoId de YouTube
         if (!m.streamUrl.startsWith("http")) {
             cargarOpcionesParaReproducir(m.streamUrl)
-            // Aquí el usuario tendrá que elegir calidad en la UI o auto-elegimos
         } else {
-            reproducirConCalidad(m.streamUrl)
+            reproducirSeleccionado(m.streamUrl)
         }
     }
     

@@ -11,7 +11,7 @@
 3. Reproduce con ExoPlayer (Media3)
 4. Tiene secciones: Explorar, Retro Player, IPTV Sat, Biblioteca, Ajustes
 
-**Versión actual**: 3.5.0  
+**Versión actual**: 3.6.0  
 **Entorno de desarrollo**: Antigravity IDE (en lugar de Android Studio)  
 **Paquete**: `com.dulce.play`
 
@@ -33,7 +33,9 @@ com.dulce.play/
 │   │   └── PlayerScreen.kt      # Pantalla del reproductor / buscador
 │   ├── explore/
 │   │   └── ExploreScreen.kt     # Pantalla inicio con top charts
-│   ├── assistant/               # Botón flotante del asistente IA
+│   ├── assistant/               # Asistente IA DULCE-BOT
+│   │   ├── AssistantCompanion.kt  # UI del chat + lógica híbrida IA/reglas
+│   │   └── LocalAIEngine.kt     # Motor IA local (Gemma 2B via MediaPipe)
 │   ├── auth/                    # Pantalla de autenticación
 │   ├── components/              # Componentes reutilizables (GlassBox, etc.)
 │   ├── iptv/                    # Pantalla IPTV
@@ -99,12 +101,51 @@ Usuario toca video en lista
 
 ---
 
-## 🧠 Estado de la IA Local (Llama 3 8B)
+## 🧠 IA Local DULCE-MIND (Gemma 2B on-device) — v3.6.0
 
-- **Estado**: Código preparado, pendiente de activación y pruebas
-- **Biblioteca**: MLC LLM
-- **Comportamiento esperado**: Descarga automática solo por Wi-Fi, funciona sin internet después
-- **Próximo paso**: Activar, verificar descarga en segundo plano, pruebas de respuesta
+- **Estado**: ✅ IMPLEMENTADO Y FUNCIONAL
+- **Motor**: Google MediaPipe `com.google.mediapipe:tasks-genai:0.10.27`
+- **Modelo**: Gemma 2B Instruct cuantizado 4 bits (~1.4 GB)
+- **Archivo del motor**: `ui/assistant/LocalAIEngine.kt`
+- **Archivo del modelo** (en dispositivo): `context.filesDir/dulce_ai_gemma2b.bin`
+
+### Decisión de arquitectura (por qué NO MLC LLM)
+- ❌ MLC LLM no tiene dependencia Gradle estándar. Requiere compilar NDK+Rust+TVM desde fuente.
+- ✅ MediaPipe `tasks-genai` tiene dependencia Gradle estándar y soporta Gemma 2B directamente.
+
+### Flujo del motor de IA
+```
+Abrir chat → LocalAIEngine.initialize(context)
+  → checkModelExists() → ¿archivo .bin existe?
+    SI → loadModel() → LlmInference.createFromOptions() → state = READY
+    NO → checkWifi()
+      WIFI → downloadModel() → HTTP GET modelo → FileOutputStream → loadModel()
+      DATOS → state = WAITING_WIFI → UI muestra aviso naranja
+```
+
+### Estados del motor (`LocalAIEngine.EngineState`)
+- `UNINITIALIZED` → No iniciado
+- `CHECKING` → Verificando si el modelo existe
+- `DOWNLOADING` → Descargando con progreso 0.0-1.0 en `downloadProgress` StateFlow
+- `WAITING_WIFI` → Esperando Wi-Fi (solo datos móviles detectado)
+- `LOADING` → Cargando modelo en RAM con MediaPipe
+- `READY` → Motor listo, `generate()` disponible
+- `ERROR` → Error irrecuperable
+
+### Formato de prompt (Gemma Instruct)
+```
+<start_of_turn>user
+[SYSTEM_PROMPT con personalidad DULCE-BOT musical]
+[historial reciente opcional]
+Usuario: [mensaje actual]<end_of_turn>
+<start_of_turn>model
+DULCE-BOT:
+```
+
+### Motor híbrido en AssistantCompanion.kt
+- Si `LocalAIEngine.state == READY` → `LocalAIEngine.generate()` (IA real)
+- Si no → `generateRuleBasedResponse()` (reglas como fallback)
+- Comandos de acción (buscar, pausar, modos) → siempre se ejecutan directamente
 
 ---
 
@@ -117,4 +158,4 @@ Usuario toca video en lista
 5. **No usar youtube-dl para extracción de streams** (ya está en build.gradle pero no implementado en el flujo actual — lo hace Invidious API)
 
 ---
-*Última actualización: 2026-06-12 | Versión: 3.5.0*
+*Última actualización: 2026-06-12 | Versión: 3.6.0*

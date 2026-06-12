@@ -2,6 +2,51 @@
 
 ---
 
+## 🧠 ETAPA 24: Implementación IA Local DULCE-MIND (V3.6.0) 🤖
+*Fecha: 2026-06-12 | Agente: Antigravity / Claude Sonnet 4.6 Thinking*
+
+### 📋 Decisión de Arquitectura
+
+Se investigó la viabilidad de MLC LLM + Llama 3 8B:
+- **MLC LLM**: ❌ No tiene dependencia Gradle estándar. Requiere compilar desde fuente con NDK + Rust + TVM. No es viable.
+- **Solución adoptada**: ✅ **Google MediaPipe `tasks-genai`** + **Gemma 2B Instruct** (cuantizado 4 bits, ~1.4 GB).
+  - Tiene dependencia Gradle estándar (`com.google.mediapipe:tasks-genai:0.10.27`)
+  - Modelo soporta español nativamente
+  - Compatible con Android 10+ (API 29)
+  - Funciona 100% offline una vez descargado
+
+### ✅ Archivos Modificados / Creados
+
+**`LocalAIEngine.kt` [NUEVO]** — `ui/assistant/LocalAIEngine.kt`:
+- Singleton que gestiona el ciclo de vida completo del motor de IA
+- Estados: `UNINITIALIZED → CHECKING → DOWNLOADING → LOADING → READY`
+- Descarga automática solo por Wi-Fi con progreso 0-100%
+- Carga del modelo con `LlmInference.createFromOptions()`
+- `generate(userMessage, conversationHistory)` → respuesta de texto real
+- System prompt configura Gemma 2B como DULCE-BOT musical colombiano
+- Formato de prompt `<start_of_turn>user...<end_of_turn><start_of_turn>model` (Gemma Instruct)
+
+**`AssistantCompanion.kt` [MODIFICADO]**:
+- `IntelligenceCenterDialog`: Inicializa `LocalAIEngine.initialize(context)` al abrir el chat
+- Añadido panel de estado IA: spinner de descarga con % de progreso, badge verde cuando está listo, aviso naranja cuando espera Wi-Fi, botón de reintento en caso de error
+- `processAssistantQuery()`: Motor híbrido — si `LocalAIEngine.state == READY` usa Gemma 2B real; si no, usa `generateRuleBasedResponse()` como fallback
+- `generateRuleBasedResponse()`: Las reglas antiguas refactorizadas como función privada de fallback, con prefijo informando el estado actual de la IA
+
+**`build.gradle.kts` [MODIFICADO]**:
+- Añadido: `implementation("com.google.mediapipe:tasks-genai:0.10.27")`
+- Añadido: `implementation("androidx.work:work-runtime-ktx:2.9.1")`
+
+### 🎯 Comportamiento Esperado
+
+1. Usuario abre chat → `LocalAIEngine.initialize()` detecta si el modelo existe
+2. **Sin modelo, con Wi-Fi** → descarga automática en segundo plano, barra de progreso en UI
+3. **Sin modelo, sin Wi-Fi** → aviso naranja, toca para reintentar
+4. **Modelo listo** → badge verde "DULCE-MIND activo"
+5. **Usuario escribe "Recomiéndame 3 canciones de vallenato"** → Gemma 2B genera respuesta real con conocimiento musical
+6. **Comandos de acción** (buscar, pausar, modo fácil) → siempre se ejecutan directamente sin pasar por la IA
+
+---
+
 ## 🔧 ETAPA 23: Corrección Crítica de Reproducción - Invidious API (V3.5.0) 🎯
 *Fecha: 2026-06-12 | Agente: Antigravity / Claude Sonnet 4.6 Thinking*
 

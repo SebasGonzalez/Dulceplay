@@ -155,9 +155,19 @@ fun IntelligenceCenterDialog(
         mutableStateListOf(
             ChatMessage(
                 sender = "DULCE_BOT",
-                text = "¡Hola ${profile.name}! Soy DULCE-BOT, tu copiloto multimedia del Cyber-Metaverso. \n\nPuedo programar temporizadores de sueño, analizar tus hábitos de Room, y activar modos especiales de accesibilidad. Pregúntame, por ejemplo: \n\n* 'Pon música para estudiar'\n* 'Activa noticias de Colombia'\n* 'Pon folklore'\n* 'Inicia el modo fácil'\n* 'Programar modo noche'"
+                text = "¡Hola ${profile.name}! Soy DULCE-BOT, tu copiloto multimedia con Inteligencia Artificial local.\n\nPuedo responderte preguntas de música, recomendar canciones y ayudarte con la app. Por ejemplo:\n\n* 'Recomïiéndame 3 canciones de vallenato'\n* 'Quién es Carlos Vives?'\n* 'Música para estudiar'\n* 'Activa modo fácil'"
             )
         )
+    }
+
+    // Estado del motor de IA
+    val aiEngineState by LocalAIEngine.state.collectAsState()
+    val aiDownloadProgress by LocalAIEngine.downloadProgress.collectAsState()
+    val aiStatusMessage by LocalAIEngine.statusMessage.collectAsState()
+
+    // Iniciar el motor de IA al abrir el chat
+    LaunchedEffect(Unit) {
+        LocalAIEngine.initialize(context)
     }
 
     // Android Speech Recognition contract
@@ -256,6 +266,135 @@ fun IntelligenceCenterDialog(
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
+                        }
+
+                        // --- Panel de Estado de IA Local ---
+                        when (aiEngineState) {
+                            LocalAIEngine.EngineState.DOWNLOADING -> {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF0D1B2A))
+                                        .border(1.dp, AccentCyan.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = AccentCyan
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = aiStatusMessage,
+                                            color = AccentCyan,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                    LinearProgressIndicator(
+                                        progress = { aiDownloadProgress },
+                                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)),
+                                        color = AccentCyan,
+                                        trackColor = Color.White.copy(alpha = 0.1f)
+                                    )
+                                    Text(
+                                        text = "${(aiDownloadProgress * 100).toInt()}% — Solo por Wi-Fi, en segundo plano",
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+                            LocalAIEngine.EngineState.WAITING_WIFI -> {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF1A0D00))
+                                        .border(1.dp, Color(0xFFFF9800).copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                        .clickable { scope.launch { LocalAIEngine.retryIfWifi(context) } }
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("📡", fontSize = 18.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Conecta Wi-Fi para descargar DULCE-MIND",
+                                            color = Color(0xFFFF9800),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            "Modelo IA: ~1.4 GB — Toca aquí para reintentar",
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                            }
+                            LocalAIEngine.EngineState.LOADING -> {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.White.copy(alpha = 0.05f))
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = PrimaryNeon)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("🧠 Cargando DULCE-MIND en memoria...", color = PrimaryNeon, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            LocalAIEngine.EngineState.READY -> {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF001A0D))
+                                        .border(1.dp, Color.Green.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("🟢", fontSize = 12.sp)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        "DULCE-MIND activo — IA Local encendida",
+                                        color = Color.Green,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            LocalAIEngine.EngineState.ERROR -> {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF1A0000))
+                                        .border(1.dp, Color.Red.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                        .clickable { scope.launch { LocalAIEngine.initialize(context) } }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("❌", fontSize = 12.sp)
+                                    Spacer(Modifier.width(6.dp))
+                                    Column {
+                                        Text("Error en DULCE-MIND", color = Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        Text("Toca para reintentar", color = Color.White.copy(alpha = 0.4f), fontSize = 9.sp)
+                                    }
+                                }
+                            }
+                            else -> { /* UNINITIALIZED o CHECKING: no mostrar nada */ }
+                        }
+
+                        if (aiEngineState != LocalAIEngine.EngineState.UNINITIALIZED &&
+                            aiEngineState != LocalAIEngine.EngineState.CHECKING) {
+                            Spacer(Modifier.height(8.dp))
                         }
 
                         // --- Active Special Modes Badges Grid ---
@@ -700,8 +839,12 @@ fun ChatBubble(
 }
 
 /**
- * Clean on-device Natural Language Parser and Cognitive Recommendation Processor.
- * It analyzes both user text structures and SQLite history lists to create responses.
+ * processAssistantQuery v2 — Motor híbrido: IA Real + Reglas de fallback
+ *
+ * Prioridad:
+ *  1. Si el motor LocalAIEngine está READY → usa Gemma 2B para generar respuesta real
+ *  2. Si no está listo → usa las reglas programadas como fallback (comandos de acción)
+ *  3. Los comandos de acción (modo fácil, pausa, buscar) SIEMPRE se ejecutan sin importar el modo
  */
 suspend fun processAssistantQuery(
     query: String,
@@ -709,153 +852,96 @@ suspend fun processAssistantQuery(
     history: MutableList<ChatMessage>,
     setAssetState: (AssistantState) -> Unit
 ) {
-    // 1. Add user message
+    // 1. Añadir mensaje del usuario
     history.add(ChatMessage(sender = "USER", text = query))
-    
-    // 2. Animate processing states
     setAssetState(AssistantState.THINKING)
-    delay(1000)
+    delay(300) // Breve pausa visual
     setAssetState(AssistantState.SPEAKING)
 
     val cleanQuery = query.trim().lowercase()
 
-    // 3. Evaluate Rule Engine & On-Device Cognitive Analysis
-    var replyText = ""
+    // ── COMANDOS DE ACCIÓN (siempre se ejecutan, con o sin IA) ─────────────────
+    // Estos comandos ejecutan funciones reales de la app primero,
+    // luego la IA genera la respuesta o se usa texto predefinido.
+
+    var actionPayload: String? = null
     var mediaPayload: MediaItem? = null
     var channelPayload: IPTVChannel? = null
-    var actionPayload: String? = null
+    var forceRuleText: String? = null // Si se establece, se usa en vez de la IA
 
     when {
-        // UNIVERSAL SEARCH COMMAND
-        cleanQuery.startsWith("busca ") || cleanQuery.startsWith("buscar ") || cleanQuery.startsWith("encuentra ") || cleanQuery.startsWith("encontrar ") || cleanQuery.startsWith("search ") -> {
-            val searchTerm = query.replace("(?i)^(busca|buscar|encuentra|encontrar|search)\\s+".toRegex(), "").trim()
-            viewModel.updateSearchQuery(searchTerm)
+        // Comandos de búsqueda → siempre ejecutar la acción
+        cleanQuery.startsWith("busca ") || cleanQuery.startsWith("buscar ") || cleanQuery.startsWith("search ") -> {
+            val term = query.replace("(?i)^(busca|buscar|search)\\s+".toRegex(), "").trim()
+            viewModel.updateSearchQuery(term)
             viewModel.setSearchOverlayActive(true)
-            replyText = "¡Por supuesto! He activado el Buscador Inteligente 'Dulce-Search' buscando **\"$searchTerm\"**. Aquí puedes explorar los resultados locales en tu celular y coincidencias de internet libres de regalías en tiempo real. 🔎🎶"
+            forceRuleText = "🔎 Buscando \"$term\" en YouTube ahora mismo..."
         }
-
-        // CONCENTRATION / STUDY MODE
-        cleanQuery.contains("estudiar") || cleanQuery.contains("concentra") || cleanQuery.contains("estudio") -> {
-            // Find a calming instrumental track
-            val studyMedia = viewModel.getFilteredMediaList().firstOrNull { 
-                it.genre.lowercase().contains("ambient") || it.genre.lowercase().contains("chillout") 
-            } ?: viewModel.getFilteredMediaList().firstOrNull()
-            
-            replyText = "¡Entendido! Activando modo de máxima concentración para potenciar tu productividad en la red. He sintonizado frecuencias de ondas alfa estables con un volumen moderado y sin transiciones bruscas. ¡Mucho éxito en tus tareas! 🧠💻"
-            mediaPayload = studyMedia
+        // Pausa/play → ejecutar inmediatamente
+        cleanQuery.contains("pausa") || cleanQuery.contains("para la música") || cleanQuery.contains("silencio") -> {
+            viewModel.togglePlay()
+            forceRuleText = "⏸️ Reproducción pausada."
         }
-
-        // REGIONAL IPTV NEWS CHANNELS
-        cleanQuery.contains("noticia") || cleanQuery.contains("news") -> {
-            var targetCountry = "Global"
-            when {
-                cleanQuery.contains("colombia") -> targetCountry = "Colombia"
-                cleanQuery.contains("méxico") || cleanQuery.contains("mexico") -> targetCountry = "México"
-                cleanQuery.contains("españa") || cleanQuery.contains("espania") -> targetCountry = "España"
-                cleanQuery.contains("argentina") -> targetCountry = "Argentina"
-            }
-
-            val channel = viewModel.getAllIPTVChannels().firstOrNull { 
-                it.group.lowercase().contains("noticias") || it.name.lowercase().contains("telesur") || it.country.lowercase() == targetCountry.lowercase()
-            } ?: viewModel.getAllIPTVChannels().firstOrNull()
-
-            replyText = if (targetCountry != "Global") {
-                "Sintonizando de inmediato el portal oficial de noticias de $targetCountry en vivo desde nuestro satélite IPTV. Mantente al día con el pulso real de la región. 🇨🇴🛰️"
-            } else {
-                "Enlazando señal de información continua y noticias globales. Abriendo streaming en vivo. 📡📰"
-            }
-            channelPayload = channel
-        }
-
-        // BEHAVIORAL / HISTORIC COGNITIVE ANALYSIS
-        cleanQuery.contains("qué ver") || cleanQuery.contains("recomi") || cleanQuery.contains("sugerencia") || cleanQuery.contains("gusta") -> {
-            val userHist = viewModel.playbackHistory.value
-            if (userHist.isNotEmpty()) {
-                // Read history to extract favorite artist or genre
-                val favoriteGenreMap = userHist.groupBy { it.mediaType }.mapValues { it.value.size }
-                val dominantType = favoriteGenreMap.maxByOrNull { it.value }?.key ?: "AUDIO"
-                
-                val lastItem = userHist.first()
-                replyText = "Análisis cognitivo de Room completado con éxito. Veo que recientemente estuviste disfrutando de '${lastItem.title}' de '${lastItem.artist}'. En base a este patrón del metaverso, te he preparado una sugerencia especial para complementar tu día. ¿Te animas a escucharla? 🤖🎶"
-                
-                // Seek recommendation item that matches genre or is premium
-                val recoItem = viewModel.getFilteredMediaList().firstOrNull { it.id != lastItem.id } 
-                    ?: viewModel.getFilteredMediaList().firstOrNull()
-                mediaPayload = recoItem
-            } else {
-                // Fallback suggestion based on temporal context (Hour profile of the device)
-                val cal = Calendar.getInstance()
-                val hour = cal.get(Calendar.HOUR_OF_DAY)
-                replyText = if (hour >= 18 || hour < 6) {
-                    "Como ya es de noche, mi algoritmo de descanso te sugiere sintonizar un flujo ambient o videos de naturaleza para restaurar tus ciclos vitales de descanso de manera óptima: 🌌💤"
-                } else {
-                    "He analizado el huso horario y te sugiero sintonizar ritmos llenos de energía y música tradicional de Artistas Locales para acompañar tu jornada diurna de forma agradable: ☀️🎵"
-                }
-                
-                mediaPayload = viewModel.getFilteredMediaList().firstOrNull { 
-                    it.genre.lowercase().contains("folklore") || it.genre.lowercase().contains("synthwave") 
-                } ?: viewModel.getFilteredMediaList().firstOrNull()
-            }
-        }
-
-        // NIGHT MODE & AUTO SLEEP TIMER
-        cleanQuery.contains("noche") || cleanQuery.contains("dormir") || cleanQuery.contains("sueño") -> {
-            viewModel.startSleepTimer(30) // set a 30 min timer
-            val dreamMedia = viewModel.getFilteredMediaList().firstOrNull { 
-                it.genre.lowercase().contains("ambient") || it.title.lowercase().contains("cielo")
-            } ?: viewModel.getFilteredMediaList().firstOrNull()
-
-            replyText = "Activando el 'Modo Noche Estelar' en todo tu entorno DulcePlay. He atenuado el brillo virtual del panel, programé el apagado automático y fade-out sonoro en 30 minutos exactos, y sintonizaremos ondas delta relajantes para inducir tu sueño de manera terapéutica. ¡Dulces sueños estelares! 🌙🛌🧬"
-            mediaPayload = dreamMedia
-        }
-
-        // ARTISTAS LOCALES / FOLKLORE TRADICIONAL
-        cleanQuery.contains("local") || cleanQuery.contains("artista") || cleanQuery.contains("cultura") || cleanQuery.contains("folclor") -> {
-            val localMedia = viewModel.getFilteredMediaList().firstOrNull { 
-                it.genre.lowercase().contains("folklore") || it.genre.lowercase().contains("cumbia") 
-            } ?: viewModel.getFilteredMediaList().getOrNull(1) ?: viewModel.getFilteredMediaList().firstOrNull()
-
-            replyText = "Fomentando la descentralización artística y la soberanía cultural del metaverso. He seleccionado la pieza '${localMedia?.title}' de '${localMedia?.artist}', un exponente orgánico ineludible con raíces de gran identidad cultural. ¡Arriba la riqueza regional! 🇨🇴🎻💃"
-            mediaPayload = localMedia
-        }
-
-        // EASY MODE / SENIOR ACCESSIBILITY ENHANCER
-        cleanQuery.contains("fácil") || cleanQuery.contains("facil") || cleanQuery.contains("anciano") || cleanQuery.contains("acces") || cleanQuery.contains("abuelo") -> {
-            replyText = "¡Hola! Estoy reprogramando la arquitectura visual del app para ti. \n\nHe activado el **Modo Fácil / Accesible**. A partir de ahora verás fuentes de texto gigantescas, botones táctiles masivos de 64dp, un menú totalmente simplificado de listado rápido y lectura vocal fluida. ¡La tecnología debe ser inclusiva para todos! 🥰👴👵"
+        // Modo fácil → activar y notificar
+        cleanQuery.contains("modo fácil") || cleanQuery.contains("modo facil") -> {
             actionPayload = "EASY_MODE"
         }
-
-        // DRIVING MODE FOR METAVERSE VEHICLES
-        cleanQuery.contains("mane") || cleanQuery.contains("conduc") || cleanQuery.contains("carro") || cleanQuery.contains("auto") -> {
-            replyText = "Entorno reprogramado de forma segura en modo 'Cyber Drive'. He maximizado los botones de toque periféricos, deshabilitado distracciones cinéticas y sintonizaremos un stream dinámico de alta velocidad constante para mantener tu foco activo en la autopista virtual. 🚗🛣️⚡"
+        // Modo conducción
+        cleanQuery.contains("modo manejo") || cleanQuery.contains("modo conduccion") || cleanQuery.contains("modo carro") -> {
             actionPayload = "DRIVING_MODE"
-            val energeticSong = viewModel.getFilteredMediaList().firstOrNull { it.genre.lowercase().contains("synthwave") } ?: viewModel.getFilteredMediaList().firstOrNull()
-            mediaPayload = energeticSong
         }
-
-        // FAMILIAR / PARENTAL GUARD
-        cleanQuery.contains("familia") || cleanQuery.contains("niño") || cleanQuery.contains("hijo") || cleanQuery.contains("infantil") -> {
-            replyText = "¡Filtro Familiar DulcePlay activado! He purgado los canales dinámicos IPTV que no están calificados como contenido infantil, bloqueado el reproductor de videos de ciencia ficción oscuros y destacado música folclórica e instrumental alegre perfecta para bailar en familia. ¡Privacidad y seguridad infantil garantizada! 👨👩👧👦🧸💖"
+        // Modo familiar
+        cleanQuery.contains("modo familia") || cleanQuery.contains("modo niños") -> {
             actionPayload = "FAMILY_MODE"
         }
-
-        // WELLNESS / MEDITATION CENTER
-        cleanQuery.contains("bienes") || cleanQuery.contains("medit") || cleanQuery.contains("relaj") || cleanQuery.contains("respir") -> {
-            replyText = "Santuario de Bienestar de DulcePlay iniciado. Te propongo una meditación consciente guiada. Inhala hondo sintiendo el flujo estelar en tus pulmones... exhala suave en sintonía con las partículas cuánticas de la app. Iniciar música de relajación profunda de fondo: 🧘🧘‍♂️🌸✨"
+        // Modo bienestar
+        cleanQuery.contains("modo bienestar") || cleanQuery.contains("meditación") -> {
             actionPayload = "WELLNESS_MODE"
         }
-
-        // PLAYBACK GENERAL CONTROLS
-        cleanQuery.contains("pausa") || cleanQuery.contains("deten") || cleanQuery.contains("para") || cleanQuery.contains("silen") -> {
-            viewModel.togglePlay()
-            replyText = "Comando de sonido ejecutado con éxito. He pausado la reproducción activa del ExoPlayer de forma inmediata."
-        }
-
-        else -> {
-            replyText = "He decodificado tu mensaje: '" + query + "'. Me parece fascinante, pero mi núcleo de inteligencia se especializa en gestionar multimedia, activar modos inclusivos y acompañar tu estado de ánimo. Prueba pidiéndome: 'modo fácil', 'música para estudiar', 'modo noche' o 'noticias de colombia'. ¡Te van a encantar! 🤖🌐"
+        // Temporizador de sueño
+        cleanQuery.contains("modo noche") || cleanQuery.contains("dormir en") -> {
+            viewModel.startSleepTimer(30)
+            forceRuleText = "🌙 Temporizador de sueño activado: la música se apagará en 30 minutos."
         }
     }
 
+    // ── GENERAR RESPUESTA DE TEXTO ──────────────────────────────────────────────
+
+    val replyText: String
+
+    if (forceRuleText != null) {
+        // Comando de acción simple → usar texto predefinido
+        replyText = forceRuleText
+    } else if (LocalAIEngine.state.value == LocalAIEngine.EngineState.READY) {
+        // ✅ IA REAL disponible → generar respuesta con Gemma 2B
+        // Construir historial de conversación para contexto
+        val conversationContext = history
+            .takeLast(6) // Últimos 3 intercambios
+            .filter { it.sender != "USER" || it.text != query } // excluir el mensaje actual
+            .chunked(2)
+            .mapNotNull { pair ->
+                val userMsg = pair.firstOrNull { it.sender == "USER" }?.text
+                val botMsg = pair.firstOrNull { it.sender == "DULCE_BOT" }?.text
+                if (userMsg != null && botMsg != null) userMsg to botMsg else null
+            }
+
+        val aiResponse = LocalAIEngine.generate(
+            userMessage = query,
+            conversationHistory = conversationContext
+        )
+
+        replyText = aiResponse ?: "¡Hola! Estoy aquí para ayudarte con música y ms. ¿En qué te puedo asistir?"
+    } else {
+        // ⚠️ IA no disponible → fallback con reglas tradicionales
+        replyText = generateRuleBasedResponse(
+            cleanQuery = cleanQuery,
+            query = query,
+            viewModel = viewModel,
+            aiState = LocalAIEngine.state.value
+        )
+    }
+
+    // Añadir respuesta del bot al historial
     history.add(
         ChatMessage(
             sender = "DULCE_BOT",
@@ -867,4 +953,45 @@ suspend fun processAssistantQuery(
     )
 
     setAssetState(AssistantState.IDLE)
+}
+
+/**
+ * Fallback: sistema de reglas original para cuando la IA no está disponible.
+ * También informa al usuario sobre el estado del motor de IA.
+ */
+private fun generateRuleBasedResponse(
+    cleanQuery: String,
+    query: String,
+    viewModel: PlayerViewModel,
+    aiState: LocalAIEngine.EngineState
+): String {
+    val aiStatusPrefix = when (aiState) {
+        LocalAIEngine.EngineState.DOWNLOADING -> "📥 [Descargando DULCE-MIND... Respondiendo con modo básico]\n\n"
+        LocalAIEngine.EngineState.WAITING_WIFI -> "📡 [Sin Wi-Fi para descargar IA. Modo básico activo]\n\n"
+        LocalAIEngine.EngineState.LOADING -> "🧠 [Cargando IA en memoria... Respondiendo con modo básico]\n\n"
+        LocalAIEngine.EngineState.ERROR -> "❌ [Error en IA local. Modo básico activo]\n\n"
+        else -> ""
+    }
+
+    val response = when {
+        cleanQuery.contains("estudiar") || cleanQuery.contains("concentra") -> {
+            val m = viewModel.getFilteredMediaList().firstOrNull()
+            "¿Quieres música para concentrarte? Activando modo estudio. ¿Necesitas algo más?"
+        }
+        cleanQuery.contains("noticia") -> {
+            val ch = viewModel.getAllIPTVChannels().firstOrNull { it.name.lowercase().contains("noticia") }
+            if (ch != null) "Buscando noticias en IPTV..." else "No encontré canales de noticias configurados."
+        }
+        cleanQuery.contains("vallenato") || cleanQuery.contains("cumbia") || cleanQuery.contains("salsa") -> {
+            "Me encantaría recomendarte música, pero mi motor de IA necesita descargarse primero para darte recomendaciones personalizadas. Una vez que DULCE-MIND se descargue por Wi-Fi, podré responder preguntas musicales con inteligencia real. 🎙️"
+        }
+        cleanQuery.contains("colombia") -> {
+            "Colombia tiene música increible: Carlos Vives, Shakira, J Balvin, Maluma... ¿Busco alguno en YouTube?"
+        }
+        else -> {
+            "Hola! Soy DULCE-BOT en modo básico. Puedo ayudarte con: buscar canciones, pausar/reproducir, y activar modos especiales. Mi motor de IA completo (DULCE-MIND) se activará cuando haya Wi-Fi disponible. 🤖"
+        }
+    }
+
+    return aiStatusPrefix + response
 }

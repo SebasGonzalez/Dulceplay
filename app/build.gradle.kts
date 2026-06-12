@@ -125,6 +125,12 @@ dependencies {
   implementation("com.github.yausername.youtubedl-android:library:0.14.0")
   implementation("com.github.yausername.youtubedl-android:ffmpeg:0.14.0")
 
+  // IA LOCAL ON-DEVICE — Google MediaPipe LLM (Gemma 2B / Llama)
+  implementation("com.google.mediapipe:tasks-genai:0.10.27")
+
+  // WorkManager para descarga del modelo en segundo plano
+  implementation("androidx.work:work-runtime-ktx:2.9.1")
+
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

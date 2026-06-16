@@ -11,7 +11,7 @@
 3. Reproduce con ExoPlayer (Media3)
 4. Tiene secciones: Explorar, Retro Player, IPTV Sat, Biblioteca, Ajustes
 
-**Versión actual**: 3.6.0  
+**Versión actual**: 3.9.1  
 **Entorno de desarrollo**: Antigravity IDE (en lugar de Android Studio)  
 **Paquete**: `com.dulce.play`
 
@@ -43,7 +43,8 @@ com.dulce.play/
 │   ├── settings/                # Pantalla ajustes
 │   └── theme/                   # Colores, tipografía
 └── utils/
-    └── SearchEngine.kt          # Motor de búsqueda YouTube + extracción de streams
+    ├── SearchEngine.kt          # Motor de búsqueda YouTube + extracción de streams
+    └── LocalStorage.kt          # NEW: Persistencia de listas y favoritos en formato JSON
 ```
 
 ---
@@ -52,10 +53,12 @@ com.dulce.play/
 
 - **YouTube API Key**: `AIzaSyCrzrUscZ5kEW-rQte8yFxmc4E2xUcDm-Q` — hardcodeada en `SearchEngine.kt`
 - **Instancias Invidious** (en orden de prioridad):
-  1. `https://inv.nadeko.net`
-  2. `https://invidious.nerdvpn.de`
-  3. `https://yt.artemislena.eu`
-  4. `https://invidious.privacydev.net`
+  1. `https://invidious.fdn.fr`
+  2. `https://inv.nadeko.net`
+  3. `https://invidious.privacydev.net`
+  4. `https://invidious.lunar.icu`
+  5. `https://inv.riverside.rocks`
+  6. `https://invidious.nerdvpn.de`
 - **Room DB**: `dulce_database`, versión 3, con `fallbackToDestructiveMigration()`
 
 ---
@@ -73,16 +76,15 @@ com.dulce.play/
 ### 2. Flujo de reproducción
 ```
 Usuario toca video en lista
-  → viewModel.playMedia(item)
+  → viewModel.playMedia(item, autoPlay = true)
     → item.streamUrl = videoId (no empieza con "http")
-    → cargarOpcionesParaReproducir(videoId)
+    → cargarOpcionesParaReproducir(videoId, autoPlay = true)
       → SearchEngine.obtenerEnlaces(videoId) [coroutine IO]
-        → Invidious API JSON → lista de Calidad
-    → _listaCalidades actualizado
-    → LaunchedEffect en PlayerScreen detecta cambio → abre DropdownMenu
-  → Usuario selecciona calidad
-    → viewModel.reproducirSeleccionado(calidad.url)
-      → exoPlayer.setMediaItem(...).prepare().play()
+        → Invidious API JSON (local=true o directo)
+        → FALLBACK Plan B si Invidious falla → extraerDirectoYouTube(videoId) (InnerTube API)
+        → Validación de red (HEAD/GET Range) en paralelo para descartar enlaces caídos
+      → reproducirSeleccionado(opciones.first().url)
+        → exoPlayer.stop() -> clear -> setMediaItem(...).prepare().play()
 ```
 
 ### 3. ExoPlayer está en el ViewModel (NO en la UI)
@@ -158,4 +160,4 @@ DULCE-BOT:
 5. **No usar youtube-dl para extracción de streams** (ya está en build.gradle pero no implementado en el flujo actual — lo hace Invidious API)
 
 ---
-*Última actualización: 2026-06-12 | Versión: 3.6.0*
+*Última actualización: 2026-06-16 | Versión: 3.9.1*

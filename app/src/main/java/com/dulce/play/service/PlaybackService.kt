@@ -12,6 +12,13 @@ class PlaybackService : MediaSessionService() {
         return activeSession
     }
 
+    override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
+        activeSession?.let { session ->
+            addSession(session)
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     override fun onDestroy() {
         activeSession?.run {
             player.release()

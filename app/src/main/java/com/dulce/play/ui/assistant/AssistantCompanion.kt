@@ -8,6 +8,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -67,6 +71,10 @@ fun AssistantFloatingButton(
     var showAssistantDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // Draggable position coordinates for the bubble
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
+
     // Breathing pulse animation for the holographic AI Orb
     val infiniteTransition = rememberInfiniteTransition(label = "hologram_pulse")
     val pulseScale by infiniteTransition.animateFloat(
@@ -92,6 +100,14 @@ fun AssistantFloatingButton(
     Box(
         modifier = modifier
             .padding(bottom = 100.dp, end = 16.dp) // Offset above floating bottom bar
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    offsetX += dragAmount.x
+                    offsetY += dragAmount.y
+                }
+            }
             .size(60.dp)
             .graphicsLayer {
                 scaleX = pulseScale
@@ -869,18 +885,124 @@ suspend fun processAssistantQuery(
     var channelPayload: IPTVChannel? = null
     var forceRuleText: String? = null // Si se establece, se usa en vez de la IA
 
+    val playRegex = "^(reproduce|reproducir|pon|toca|coloca|busca y reproduce|escuchar)\\s+(.+)".toRegex()
+    val matchPlay = playRegex.find(cleanQuery)
+
     when {
-        // Comandos de búsqueda → siempre ejecutar la acción
+        // Reproducir género/canción/artista
+        matchPlay != null -> {
+            val term = matchPlay.groupValues[2].trim()
+            viewModel.updateSearchQuery(term)
+            var retries = 0
+            while (viewModel.isSearching.value && retries < 30) {
+                delay(100)
+                retries++
+            }
+            delay(300)
+            val results = viewModel.onlineSearchResults.value
+            if (results.isNotEmpty()) {
+                val chosen = results.first()
+                viewModel.playMedia(chosen, autoPlay = true)
+                forceRuleText = "🎶 Reproduciendo **${chosen.title}** de *${chosen.artist}* en YouTube..."
+            } else {
+                forceRuleText = "🔍 Busqué \"$term\" pero no encontré resultados en este momento."
+            }
+        }
+        // Recomendación de música tranquila
+        cleanQuery.contains("recomiendame algo tranquilo") || cleanQuery.contains("musica tranquila") || cleanQuery.contains("algo relajante") -> {
+            val term = "musica lo-fi relajante instrumental"
+            viewModel.updateSearchQuery(term)
+            var retries = 0
+            while (viewModel.isSearching.value && retries < 30) {
+                delay(100)
+                retries++
+            }
+            delay(300)
+            val results = viewModel.onlineSearchResults.value
+            if (results.isNotEmpty()) {
+                val chosen = results.first()
+                viewModel.playMedia(chosen, autoPlay = true)
+                forceRuleText = "☕ Te recomiendo algo tranquilo para relajarte. Reproduciendo **${chosen.title}**..."
+            } else {
+                forceRuleText = "☕ Quise buscar música tranquila pero no encontré resultados en este momento."
+            }
+        }
+        // Recomendación de música alegre
+        cleanQuery.contains("recomiendame algo alegre") || cleanQuery.contains("musica alegre") || cleanQuery.contains("algo movido") || cleanQuery.contains("para bailar") -> {
+            val term = "exitos salsa merengue popular colombia"
+            viewModel.updateSearchQuery(term)
+            var retries = 0
+            while (viewModel.isSearching.value && retries < 30) {
+                delay(100)
+                retries++
+            }
+            delay(300)
+            val results = viewModel.onlineSearchResults.value
+            if (results.isNotEmpty()) {
+                val chosen = results.first()
+                viewModel.playMedia(chosen, autoPlay = true)
+                forceRuleText = "💃 ¡Vamos a subir el ánimo! Te recomiendo esta canción alegre. Reproduciendo **${chosen.title}**..."
+            } else {
+                forceRuleText = "💃 Quise buscar música alegre pero no encontré resultados en este momento."
+            }
+        }
+        // Siguiente canción
+        cleanQuery.contains("siguiente") || cleanQuery.contains("avanzar") || cleanQuery.contains("pasa la cancion") -> {
+            viewModel.next()
+            forceRuleText = "⏭️ Reproduciendo la siguiente canción."
+        }
+        // Anterior canción
+        cleanQuery.contains("anterior") || cleanQuery.contains("retroceder") || cleanQuery.contains("atras") || cleanQuery.contains("regresa") -> {
+            viewModel.prev()
+            forceRuleText = "⏮️ Reproduciendo la canción anterior."
+        }
+        // Pausa
+        cleanQuery.contains("pausa") || cleanQuery.contains("para la musica") || cleanQuery.contains("detener") || cleanQuery.contains("silencio") -> {
+            if (viewModel.exoPlayer.isPlaying) {
+                viewModel.exoPlayer.pause()
+                forceRuleText = "⏸️ Reproducción pausada."
+            } else {
+                forceRuleText = "El reproductor ya está pausado."
+            }
+        }
+        // Continúa / Reanudar
+        cleanQuery.contains("continua") || cleanQuery.contains("reanuda") || cleanQuery.contains("seguir reproduciendo") || (cleanQuery == "reproduce") -> {
+            if (!viewModel.exoPlayer.isPlaying) {
+                viewModel.exoPlayer.play()
+                forceRuleText = "▶️ Reproducción reanudada."
+            } else {
+                forceRuleText = "El reproductor ya está sonando."
+            }
+        }
+        // Control de volumen - bajar
+        cleanQuery.contains("baja el volumen") || cleanQuery.contains("bajale el volumen") || cleanQuery.contains("bajar volumen") || cleanQuery.contains("bajar el volumen") || cleanQuery.contains("bajale") -> {
+            val currentVol = viewModel.getVolume()
+            val newVol = (currentVol - 0.25f).coerceIn(0f, 1f)
+            viewModel.setVolume(newVol)
+            forceRuleText = "🔉 Volumen reducido al ${(newVol * 100).toInt()}%."
+        }
+        // Control de volumen - subir
+        cleanQuery.contains("sube el volumen") || cleanQuery.contains("subele el volumen") || cleanQuery.contains("subir volumen") || cleanQuery.contains("subir el volumen") || cleanQuery.contains("subele") -> {
+            val currentVol = viewModel.getVolume()
+            val newVol = (currentVol + 0.25f).coerceIn(0f, 1f)
+            viewModel.setVolume(newVol)
+            forceRuleText = "🔊 Volumen aumentado al ${(newVol * 100).toInt()}%."
+        }
+        // Qué está sonando
+        cleanQuery.contains("que esta sonando") || cleanQuery.contains("que suena") || cleanQuery.contains("cancion actual") || cleanQuery.contains("que cancion es") || cleanQuery.contains("quien canta") -> {
+            val current = viewModel.currentMedia.value
+            forceRuleText = if (current.title.isNotBlank() && current.title != "Sintonizando DulcePlay") {
+                "🎧 Actualmente está sonando:\n\n**${current.title}**\n👤 Artista: *${current.artist}*"
+            } else {
+                "📭 No hay ninguna canción sonando en este momento."
+            }
+        }
+        // Comandos de búsqueda
         cleanQuery.startsWith("busca ") || cleanQuery.startsWith("buscar ") || cleanQuery.startsWith("search ") -> {
             val term = query.replace("(?i)^(busca|buscar|search)\\s+".toRegex(), "").trim()
             viewModel.updateSearchQuery(term)
             viewModel.setSearchOverlayActive(true)
             forceRuleText = "🔎 Buscando \"$term\" en YouTube ahora mismo..."
-        }
-        // Pausa/play → ejecutar inmediatamente
-        cleanQuery.contains("pausa") || cleanQuery.contains("para la música") || cleanQuery.contains("silencio") -> {
-            viewModel.togglePlay()
-            forceRuleText = "⏸️ Reproducción pausada."
         }
         // Modo fácil → activar y notificar
         cleanQuery.contains("modo fácil") || cleanQuery.contains("modo facil") -> {
@@ -902,6 +1024,74 @@ suspend fun processAssistantQuery(
         cleanQuery.contains("modo noche") || cleanQuery.contains("dormir en") -> {
             viewModel.startSleepTimer(30)
             forceRuleText = "🌙 Temporizador de sueño activado: la música se apagará en 30 minutos."
+        }
+        // ── NUEVOS COMANDOS V3.9.0 ──────────────────────────────────────────
+        // Agregar a favoritos
+        cleanQuery.contains("agrega") && (cleanQuery.contains("favorito") || cleanQuery.contains("fav")) ||
+        cleanQuery.contains("añade") && cleanQuery.contains("favorito") -> {
+            val current = viewModel.currentMedia.value
+            if (current.title.isNotBlank() && current.title != "Sintonizando DulcePlay") {
+                viewModel.toggleFavorite(current)
+                forceRuleText = "❤️ **${current.title}** añadida a tus favoritos."
+            } else {
+                forceRuleText = "📭 No hay ninguna canción sonando para agregar a favoritos."
+            }
+        }
+        // Añadir a lista por nombre
+        cleanQuery.contains("añade") && cleanQuery.contains("lista") || cleanQuery.contains("agregar a lista") -> {
+            val current = viewModel.currentMedia.value
+            val playlists = viewModel.persistedPlaylists.value
+            val queryWords = cleanQuery.split(" ")
+            val matchedPlaylist = playlists.firstOrNull { pl -> queryWords.any { w -> pl.name.lowercase().contains(w) } }
+            if (current.title.isBlank() || current.title == "Sintonizando DulcePlay") {
+                forceRuleText = "📭 No hay canción en reproducción para agregar a la lista."
+            } else if (matchedPlaylist != null) {
+                viewModel.addTrackToUserPlaylist(matchedPlaylist.id, current)
+                forceRuleText = "📂 **${current.title}** añadida a la lista **${matchedPlaylist.name}**."
+            } else if (playlists.isEmpty()) {
+                forceRuleText = "📂 No tienes listas creadas. Ve al reproductor y crea una con el botón ⋮."
+            } else {
+                val listaNames = playlists.joinToString(", ") { it.name }
+                forceRuleText = "📂 No encontré esa lista. Tus listas son: $listaNames"
+            }
+        }
+        // Agregar a la cola
+        cleanQuery.contains("agrega a la cola") || cleanQuery.contains("añade a la cola") || cleanQuery.contains("pon en cola") -> {
+            val current = viewModel.currentMedia.value
+            if (current.title.isNotBlank() && current.title != "Sintonizando DulcePlay") {
+                viewModel.addToQueue(current)
+                forceRuleText = "🎵 **${current.title}** añadida a la cola de reproducción."
+            } else {
+                forceRuleText = "📭 No hay canción activa para agregar a la cola."
+            }
+        }
+        // Repetir esta canción
+        cleanQuery.contains("repite esta") || cleanQuery.contains("repite la cancion") || cleanQuery.contains("poner en bucle") -> {
+            viewModel.toggleRepeat()
+            val mode = viewModel.repeatMode.value
+            forceRuleText = when (mode) {
+                PlayerViewModel.RepeatMode.ONE  -> "🔂 Modo: Repetir esta canción activado."
+                PlayerViewModel.RepeatMode.ALL  -> "🔁 Modo: Repetir toda la lista activado."
+                PlayerViewModel.RepeatMode.NONE -> "❌ Repetición desactivada."
+            }
+        }
+        // Aleatorio
+        cleanQuery.contains("pon aleatorio") || cleanQuery.contains("modo aleatorio") || cleanQuery.contains("mezclar") -> {
+            if (!viewModel.shuffleEnabled.value) {
+                viewModel.toggleShuffle()
+                forceRuleText = "🔀 Modo aleatorio activado. Las canciones sonarán en orden aleatorio."
+            } else {
+                forceRuleText = "🔀 El modo aleatorio ya está activado."
+            }
+        }
+        // Quitar aleatorio
+        cleanQuery.contains("quita aleatorio") || cleanQuery.contains("quitar aleatorio") || cleanQuery.contains("desactivar aleatorio") || cleanQuery.contains("orden normal") -> {
+            if (viewModel.shuffleEnabled.value) {
+                viewModel.toggleShuffle()
+                forceRuleText = "➡️ Modo aleatorio desactivado. Reproducción en orden normal."
+            } else {
+                forceRuleText = "➡️ El modo aleatorio ya estaba desactivado."
+            }
         }
     }
 
@@ -925,12 +1115,18 @@ suspend fun processAssistantQuery(
                 if (userMsg != null && botMsg != null) userMsg to botMsg else null
             }
 
+        val current = viewModel.currentMedia.value
+        val currentMediaInfo = if (current.title.isNotBlank() && current.title != "Sintonizando DulcePlay") "${current.title} por ${current.artist}" else ""
+        val recentMediaList = viewModel.recentPlayed.value.map { "${it.title} por ${it.artist}" }
+
         val aiResponse = LocalAIEngine.generate(
             userMessage = query,
-            conversationHistory = conversationContext
+            conversationHistory = conversationContext,
+            currentMediaInfo = currentMediaInfo,
+            recentMediaList = recentMediaList
         )
 
-        replyText = aiResponse ?: "¡Hola! Estoy aquí para ayudarte con música y ms. ¿En qué te puedo asistir?"
+        replyText = aiResponse ?: "¡Hola! Estoy aquí para ayudarte con música y más. ¿En qué te puedo asistir?"
     } else {
         // ⚠️ IA no disponible → fallback con reglas tradicionales
         replyText = generateRuleBasedResponse(

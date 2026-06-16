@@ -1,7 +1,8 @@
 package com.dulce.play
 
 import android.app.Application
-import com.yausername.youtubedl_android.YoutubeDL
+import android.util.Log
+import com.dulce.play.ui.assistant.LocalAIEngine
 
 class DulcePlayApp : Application() {
     companion object {
@@ -14,9 +15,20 @@ class DulcePlayApp : Application() {
         instance = this
         try {
             // INICIALIZAMOS EL SISTEMA DE EXTRACCIÓN UNA SOLA VEZ
-            YoutubeDL.getInstance().init(this)
+            com.yausername.youtubedl_android.YoutubeDL.getInstance().init(this)
         } catch (e: Exception) {
-            android.util.Log.e("DulcePlayApp", "Error al inicializar YoutubeDL", e)
+            Log.e("DulcePlayApp", "Error al inicializar YoutubeDL: ${e.message}")
+        }
+    }
+
+    override fun onTerminate() {
+        super.onTerminate()
+        // Liberar motor IA SOLO al cerrar completamente la app
+        try {
+            LocalAIEngine.release()
+            Log.d("DulcePlayApp", "✅ Motor IA liberado al cerrar app")
+        } catch (e: Exception) {
+            Log.w("DulcePlayApp", "Error liberando motor IA: ${e.message}")
         }
     }
 }

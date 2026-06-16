@@ -1,16 +1,19 @@
 package com.dulce.play
 
+import com.dulce.play.utils.SearchEngine
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 
-/**
- * Example local unit test, which will execute on the development machine (host).
- *
- * See [testing documentation](http://d.android.com/tools/testing).
- */
 class ExampleUnitTest {
   @Test
-  fun addition_isCorrect() {
-    assertEquals(4, 2 + 2)
+  fun testSearch() = runBlocking {
+    val engine = SearchEngine()
+    val results = engine.buscar("salsa")
+    println("RESULTS COUNT: ${results.size}")
+    for (r in results) {
+        println("Result: ${r.titulo} - ${r.id}")
+    }
+    assertTrue(results.isNotEmpty())
   }
 }

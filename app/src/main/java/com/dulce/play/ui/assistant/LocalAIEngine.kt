@@ -16,29 +16,24 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * LocalAIEngine — Motor de IA Local para DulcePlay v3.6.0
+ * LocalAIEngine — Motor de IA Local para DulcePlay v3.8.0 (VERSIÓN DE ORO)
  *
- * Usa Google MediaPipe Tasks GenAI para ejecutar Gemma 2B Instruct
- * directamente en el dispositivo Android, sin conexión a internet.
- *
- * Flujo:
- *  1. checkModelReady() → ¿modelo descargado?
- *  2. Si no → downloadModelIfWifi() → descarga solo por Wi-Fi
- *  3. loadModel() → carga en memoria con MediaPipe LlmInference
- *  4. generate(prompt) → respuesta de IA real
+ * OPTIMIZACIÓN CRÍTICA v3.8.0:
+ *  - Carga ÚNICA: El motor se inicializa UNA SOLA VEZ y permanece en memoria.
+ *  - NUNCA se recarga al cambiar de pantalla, minimizar o volver a la app.
+ *  - Se libera SOLO cuando la app se cierra completamente (onDestroy de Application).
+ *  - isInitializing flag evita llamadas concurrentes de initialize().
+ *  - Al volver al chat, si ya está READY, muestra "Cerebro Activo" 🟢 instantáneamente.
  */
 object LocalAIEngine {
 
     private const val TAG = "DULCE_AI"
 
-    // Modelo: Gemma 2B Instruct cuantizado 4 bits (formato .bin compatible MediaPipe)
-    // Fuente oficial de Google AI Edge para MediaPipe
     private const val MODEL_URL =
-        "https://storage.googleapis.com/mediapipe-models/llm_inference/gemma-2b-it-cpu-int4/float16/1/gemma-2b-it-cpu-int4.bin"
+        "https://huggingface.co/autoocrat0413/gemma-2b-it-gpu-int4-mediapipe/resolve/main/gemma-2b-it-gpu-int4.bin"
     private const val MODEL_FILENAME = "dulce_ai_gemma2b.bin"
-    private const val MODEL_SIZE_BYTES_APPROX = 1_479_000_000L // ~1.4 GB
+    private const val MODEL_SIZE_BYTES_APPROX = 1_354_301_440L
 
-    // System prompt: convierte Gemma 2B en DULCE-BOT musical
     private const val SYSTEM_PROMPT = """Eres DULCE-BOT, el asistente de inteligencia artificial integrado en DulcePlay, una aplicación de música y video para Android.
 
 Tu personalidad:
@@ -55,25 +50,32 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
     // ── Estados ────────────────────────────────────────────────────────────────
 
     enum class EngineState {
-        UNINITIALIZED,     // No iniciado
-        CHECKING,          // Verificando si el modelo existe
-        DOWNLOADING,       // Descargando modelo
-        WAITING_WIFI,      // Esperando conexión Wi-Fi
-        LOADING,           // Cargando modelo en memoria
-        READY,             // Listo para inferencia
-        ERROR              // Error irrecuperable
+        UNINITIALIZED,
+        CHECKING,
+        DOWNLOADING,
+        WAITING_WIFI,
+        LOADING,
+        READY,
+        ERROR
     }
 
     private val _state = MutableStateFlow(EngineState.UNINITIALIZED)
     val state: StateFlow<EngineState> = _state.asStateFlow()
 
-    private val _downloadProgress = MutableStateFlow(0f)  // 0.0 a 1.0
+    private val _downloadProgress = MutableStateFlow(0f)
     val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
 
     private val _statusMessage = MutableStateFlow("Asistente IA en reposo")
     val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
 
     private var llmInference: LlmInference? = null
+
+    /**
+     * FLAG CRÍTICO: Evita que initialize() se ejecute múltiples veces simultáneamente.
+     * Esto resuelve el problema de "Cargando cerebro..." cada vez que se entra al chat.
+     */
+    @Volatile
+    private var isInitializing = false
 
     // ── Archivo del modelo ─────────────────────────────────────────────────────
 
@@ -88,39 +90,69 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
     // ── Verificación de Wi-Fi ──────────────────────────────────────────────────
 
     fun isWifiConnected(context: Context): Boolean {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = cm.activeNetwork ?: return false
-        val caps = cm.getNetworkCapabilities(network) ?: return false
-        return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error verificando Wi-Fi: ${e.message}")
+            false
+        }
     }
 
     // ── Inicialización principal ───────────────────────────────────────────────
 
     /**
-     * Punto de entrada principal. Llama esto al abrir el chat.
-     * Gestiona automáticamente descarga → carga → listo.
+     * OPTIMIZACIÓN CLAVE v3.8.0:
+     * - Si ya está READY → NO hace nada. Retorna inmediatamente. ✅
+     * - Si ya está DOWNLOADING/LOADING → NO interrumpe. Retorna inmediatamente. ✅
+     * - Si isInitializing == true → NO inicia segunda carga. Retorna inmediatamente. ✅
+     * - Solo carga desde cero si UNINITIALIZED, WAITING_WIFI o ERROR.
      */
     suspend fun initialize(context: Context) {
-        if (_state.value == EngineState.READY || _state.value == EngineState.DOWNLOADING) return
+        // GUARD 1: Si ya está listo, no hacer nada en absoluto
+        if (_state.value == EngineState.READY) {
+            Log.d(TAG, "✅ Motor ya está LISTO. Sin necesidad de recarga.")
+            return
+        }
 
-        _state.value = EngineState.CHECKING
-        _statusMessage.value = "Verificando DULCE-MIND..."
+        // GUARD 2: Si ya está en proceso (descargando o cargando), no interrumpir
+        if (_state.value == EngineState.DOWNLOADING || _state.value == EngineState.LOADING) {
+            Log.d(TAG, "⏳ Motor en proceso (${_state.value}). Esperando...")
+            return
+        }
 
-        if (isModelDownloaded(context)) {
-            loadModel(context)
-        } else {
-            if (isWifiConnected(context)) {
-                downloadModel(context)
+        // GUARD 3: Evitar llamadas concurrentes
+        if (isInitializing) {
+            Log.d(TAG, "🔒 Ya hay una inicialización en curso. Ignorando llamada duplicada.")
+            return
+        }
+
+        isInitializing = true
+        try {
+            _state.value = EngineState.CHECKING
+            _statusMessage.value = "Verificando DULCE-MIND..."
+
+            if (isModelDownloaded(context)) {
+                // El modelo ya existe — solo cargar en memoria
+                loadModel(context)
             } else {
-                _state.value = EngineState.WAITING_WIFI
-                _statusMessage.value = "📶 Conecta a Wi-Fi para descargar DULCE-MIND (~1.4 GB)"
-                Log.w(TAG, "Sin Wi-Fi. Esperando para descargar el modelo.")
+                if (isWifiConnected(context)) {
+                    downloadModel(context)
+                } else {
+                    _state.value = EngineState.WAITING_WIFI
+                    _statusMessage.value = "📶 Conecta a Wi-Fi para descargar DULCE-MIND (~1.4 GB)"
+                    Log.w(TAG, "Sin Wi-Fi. Esperando para descargar el modelo.")
+                }
             }
+        } finally {
+            isInitializing = false
         }
     }
 
     /**
-     * Reintentar inicialización (cuando el usuario conecta Wi-Fi manualmente)
+     * Reintentar solo si está en estado WAITING_WIFI y hay conexión.
      */
     suspend fun retryIfWifi(context: Context) {
         if (_state.value == EngineState.WAITING_WIFI && isWifiConnected(context)) {
@@ -139,12 +171,34 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
         val tempFile = File(context.filesDir, "$MODEL_FILENAME.tmp")
 
         try {
-            val connection = URL(MODEL_URL).openConnection() as HttpURLConnection
+            var connection = URL(MODEL_URL).openConnection() as HttpURLConnection
             connection.apply {
                 requestMethod = "GET"
                 connectTimeout = 30000
                 readTimeout = 60000
-                setRequestProperty("User-Agent", "DulcePlay/3.6 Android")
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "DulcePlay/3.8 Android")
+            }
+
+            var responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_MOVED_TEMP ||
+                responseCode == HttpURLConnection.HTTP_MOVED_PERM ||
+                responseCode == 307 || responseCode == 308) {
+                val newUrl = connection.getHeaderField("Location")
+                Log.d(TAG, "Redireccionando descarga a: $newUrl")
+                connection = URL(newUrl).openConnection() as HttpURLConnection
+                connection.apply {
+                    requestMethod = "GET"
+                    connectTimeout = 30000
+                    readTimeout = 60000
+                    instanceFollowRedirects = true
+                    setRequestProperty("User-Agent", "DulcePlay/3.8 Android")
+                }
+                responseCode = connection.responseCode
+            }
+
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw Exception("Error HTTP de descarga: $responseCode")
             }
 
             val totalBytes = connection.contentLengthLong
@@ -171,11 +225,9 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
             inputStream.close()
             connection.disconnect()
 
-            // Renombrar temp → archivo final
             tempFile.renameTo(destFile)
             Log.d(TAG, "✅ Modelo descargado correctamente: ${destFile.length()} bytes")
 
-            // Cargar en memoria
             loadModel(context)
 
         } catch (e: Exception) {
@@ -188,7 +240,17 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
 
     // ── Carga del modelo en memoria ────────────────────────────────────────────
 
+    /**
+     * OPTIMIZACIÓN: Verifica una vez más si ya está listo antes de cargar.
+     * Esto evita cargas duplicadas en condiciones de carrera.
+     */
     private suspend fun loadModel(context: Context) = withContext(Dispatchers.IO) {
+        // Double-check: si ya está READY (por condición de carrera), salir
+        if (_state.value == EngineState.READY && llmInference != null) {
+            Log.d(TAG, "✅ Motor ya cargado (double-check). Omitiendo carga.")
+            return@withContext
+        }
+
         _state.value = EngineState.LOADING
         _statusMessage.value = "🧠 Cargando DULCE-MIND en memoria..."
         Log.d(TAG, "Cargando modelo MediaPipe LLM...")
@@ -198,15 +260,11 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(modelFile.absolutePath)
                 .setMaxTokens(1024)
-                .setResultListener { partialResult, done ->
-                    // Para inferencia en streaming (si se usa el modo async)
-                    Log.d(TAG, "Partial: $partialResult | Done: $done")
-                }
                 .build()
 
             llmInference = LlmInference.createFromOptions(context, options)
             _state.value = EngineState.READY
-            _statusMessage.value = "✅ DULCE-MIND activo — IA local encendida"
+            _statusMessage.value = "🟢 Cerebro Activo — IA encendida"
             _downloadProgress.value = 1f
             Log.d(TAG, "✅ Motor de IA listo para inferencia")
 
@@ -219,15 +277,11 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
 
     // ── Inferencia ─────────────────────────────────────────────────────────────
 
-    /**
-     * Genera una respuesta de la IA local.
-     * @param userMessage El mensaje del usuario
-     * @param conversationHistory Historial reciente del chat (últimos N mensajes)
-     * @return Respuesta generada por el modelo, o null si el motor no está listo
-     */
     suspend fun generate(
         userMessage: String,
-        conversationHistory: List<Pair<String, String>> = emptyList()
+        conversationHistory: List<Pair<String, String>> = emptyList(),
+        currentMediaInfo: String = "",
+        recentMediaList: List<String> = emptyList()
     ): String? = withContext(Dispatchers.Default) {
         val engine = llmInference ?: run {
             Log.w(TAG, "Motor no inicializado, no se puede generar respuesta")
@@ -235,8 +289,7 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
         }
 
         try {
-            // Construir el prompt completo con el formato de Gemma Instruct
-            val fullPrompt = buildGemmaPrompt(userMessage, conversationHistory)
+            val fullPrompt = buildGemmaPrompt(userMessage, conversationHistory, currentMediaInfo, recentMediaList)
             Log.d(TAG, "Generando respuesta para: '${userMessage.take(50)}...'")
 
             val response = engine.generateResponse(fullPrompt)
@@ -250,29 +303,32 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
         }
     }
 
-    /**
-     * Construye el prompt en el formato de instrucción de Gemma:
-     * <start_of_turn>user\n{mensaje}<end_of_turn>\n<start_of_turn>model\n
-     */
     private fun buildGemmaPrompt(
         userMessage: String,
-        history: List<Pair<String, String>>
+        history: List<Pair<String, String>>,
+        currentMediaInfo: String,
+        recentMediaList: List<String>
     ): String {
         val sb = StringBuilder()
 
-        // System context (integrado como parte del primer turno de usuario)
         sb.append("<start_of_turn>user\n")
         sb.append(SYSTEM_PROMPT)
+
+        if (currentMediaInfo.isNotBlank()) {
+            sb.append("\n\n[REPRODUCTOR ACTUAL] Actualmente el usuario escucha: $currentMediaInfo")
+        }
+        if (recentMediaList.isNotEmpty()) {
+            sb.append("\n[HISTORIAL DE SESIÓN] Temas reproducidos recientemente: ${recentMediaList.joinToString(", ")}")
+        }
+
         sb.append("\n\n---\n\n")
 
-        // Historial reciente (últimos 3 intercambios para contexto)
         val recentHistory = history.takeLast(3)
         for ((histUser, histBot) in recentHistory) {
             sb.append("Usuario: $histUser\n")
             sb.append("DULCE-BOT: $histBot\n\n")
         }
 
-        // Mensaje actual
         sb.append("Usuario: $userMessage")
         sb.append("<end_of_turn>\n")
         sb.append("<start_of_turn>model\n")
@@ -283,21 +339,29 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
 
     // ── Limpieza de recursos ───────────────────────────────────────────────────
 
+    /**
+     * SOLO llamar cuando la Application se destruye completamente.
+     * NUNCA llamar al minimizar, cambiar de pantalla o volver al chat.
+     */
     fun release() {
-        llmInference?.close()
+        try {
+            llmInference?.close()
+        } catch (e: Exception) {
+            Log.w(TAG, "Error cerrando LlmInference: ${e.message}")
+        }
         llmInference = null
+        isInitializing = false
         _state.value = EngineState.UNINITIALIZED
-        Log.d(TAG, "Motor de IA liberado")
+        Log.d(TAG, "Motor de IA liberado (cierre completo de app)")
     }
 
-    /**
-     * Elimina el modelo del almacenamiento (para liberar espacio)
-     */
     fun deleteModel(context: Context): Boolean {
         val f = getModelFile(context)
         return if (f.exists()) {
             f.delete().also { deleted ->
                 if (deleted) {
+                    llmInference?.close()
+                    llmInference = null
                     _state.value = EngineState.UNINITIALIZED
                     _statusMessage.value = "Modelo eliminado del almacenamiento"
                     Log.d(TAG, "Modelo eliminado")
@@ -306,9 +370,6 @@ Recuerda: eres parte de DulcePlay, una app colombiana de música. Prioriza artis
         } else false
     }
 
-    /**
-     * Retorna el tamaño del modelo descargado en MB
-     */
     fun getModelSizeMb(context: Context): Long {
         val f = getModelFile(context)
         return if (f.exists()) f.length() / (1024 * 1024) else 0L

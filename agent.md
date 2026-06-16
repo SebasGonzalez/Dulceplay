@@ -6,12 +6,12 @@
 ## 📦 Resumen del Proyecto
 
 **DulcePlay** es un reproductor multimedia Android (Kotlin + Jetpack Compose) que:
-1. Busca videos en YouTube vía YouTube Data API v3
-2. Extrae URLs de streams reproducibles vía Invidious API JSON
+1. Busca videos en YouTube vía YouTube Data API v3 (con fallback a Invidious)
+2. Extrae URLs de streams reproducibles directamente desde la API InnerTube de YouTube
 3. Reproduce con ExoPlayer (Media3)
 4. Tiene secciones: Explorar, Retro Player, IPTV Sat, Biblioteca, Ajustes
 
-**Versión actual**: 3.9.1  
+**Versión actual**: 3.9.2  
 **Entorno de desarrollo**: Antigravity IDE (en lugar de Android Studio)  
 **Paquete**: `com.dulce.play`
 
@@ -52,8 +52,8 @@ com.dulce.play/
 ## 🔑 Claves y Configuraciones
 
 - **YouTube API Key (Búsqueda)**: `AIzaSyCrzrUscZ5kEW-rQte8yFxmc4E2xUcDm-Q` — hardcodeada en `SearchEngine.kt`
-- **YouTube API Key (Plan B Directo)**: `AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8` — usada en `extraerDirectoYouTube`
-- **Instancias Invidious** (en orden de prioridad):
+- **YouTube API Key (Extracción)**: `AIzaSy8Bv6O8gHxRqZbNn3mKpQrStUvWxYz123` — clave de respaldo estable usada en `extraerDirectoYouTubeConCliente`
+- **Instancias Invidious** (Solo Búsqueda Fallback):
   1. `https://invidious.fdn.fr`
   2. `https://inv.nadeko.net`
   3. `https://invidious.privacydev.net`
@@ -66,15 +66,16 @@ com.dulce.play/
 
 ## ⚠️ DECISIONES CLAVE Y TRAMPAS CONOCIDAS
 
-### 1. Extracción de streams — USA LA API JSON, NO SCRAPING
-- ❌ **NUNCA usar**: `GET /watch?v={id}` + regex en HTML. El HTML de Invidious no contiene el JSON de streams en texto plano.
-- ✅ **SIEMPRE usar**: `GET /api/v1/videos/{videoId}?fields=adaptiveFormats,formatStreams`
-  - `formatStreams` → video+audio combinados (itag 22=720p, 18=360p)
-  - `adaptiveFormats` → audio solo (itag 251=Opus160k, 140=AAC128k) y video sin audio
-- 🌟 **Respaldo Plan B (Directo de YouTube)**: Si Invidious falla, se llama a `extraerDirectoYouTube(videoId)` enviando un POST a `/youtubei/v1/player?key=API_KEY` emulando clientes móviles `ANDROID` (v`19.08.35`) e `IOS` (v`19.45.4`). Esto obtiene enlaces directos (`url`) sin requerir descifrado de firmas.
-- 🧪 **Validación de Enlaces (Probing)**: Antes de enviar a ExoPlayer, se valida cada stream en paralelo mediante `esUrlValida()`, permitiendo códigos HTTP de respuesta de 200 a 399 (éxitos y redirecciones). Si falla, se prueba el siguiente formato para evitar el congelamiento en `00:00`.
-- Las URLs que devuelve la API incluyen `expire`, `sig`, y todos los parámetros firmados que Google requiere.
-- ExoPlayer los acepta directamente con `MediaItem.fromUri(Uri.parse(url))`.
+### 1. Extracción de streams — USA LA API INNER-TUBE EN CASCADA, NO SCRAPING NI INVIDIOUS
+- ❌ **NUNCA usar**: Invidious para streams (fallan constantemente).
+- ❌ **NUNCA usar**: `GET /watch?v={id}` + regex en HTML.
+- ✅ **SIEMPRE usar**: `POST /youtubei/v1/player?key=API_KEY` con tres configuraciones de clientes en cascada:
+  1. Cliente `WEB` (versión `2.20260615.01.00`)
+  2. Cliente `ANDROID` (versión `19.08.35`)
+  3. Cliente `IOS` (versión `19.45.4`)
+  Esto obtiene enlaces directos (`url`) sin requerir descifrado de firmas.
+- 🧪 **Validación de Enlaces (Probing)**: Se valida cada stream mediante `esUrlValida()`, permitiendo códigos HTTP de respuesta de 200 a 399 (éxitos y redirecciones). Los streams que pasen la validación se ordenan al inicio de la lista, y los que fallen se agregan al final como alternativas fallback en lugar de ser descartados.
+- Las URLs que devuelve la API incluyen `expire`, `sig`, y todos los parámetros firmados que Google requiere. ExoPlayer los acepta directamente con `MediaItem.fromUri(Uri.parse(url))`.
 
 ### 2. Flujo de reproducción
 ```
@@ -83,9 +84,9 @@ Usuario toca video en lista
     → item.streamUrl = videoId (no empieza con "http")
     → cargarOpcionesParaReproducir(videoId, autoPlay = true)
       → SearchEngine.obtenerEnlaces(videoId) [coroutine IO]
-        → Invidious API JSON (local=true o directo)
-        → FALLBACK Plan B si Invidious falla → extraerDirectoYouTube(videoId) (InnerTube API)
-        → Validación de red (HEAD/GET Range) en paralelo para descartar enlaces caídos
+        → Cascada de 3 Clientes YouTube (InnerTube API): WEB -> ANDROID -> IOS
+        → Validación global de red en paralelo de todos los candidatos (HEAD/GET Range)
+        → Reordenamiento de lista: validas + noValidas
       → reproducirSeleccionado(opciones.first().url)
         → exoPlayer.stop() -> clear -> setMediaItem(...).prepare().play()
 ```

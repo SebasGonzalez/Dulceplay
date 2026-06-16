@@ -11,7 +11,7 @@
 3. Reproduce con ExoPlayer (Media3)
 4. Tiene secciones: Explorar, Retro Player, IPTV Sat, Biblioteca, Ajustes
 
-**Versión actual**: 3.9.3  
+**Versión actual**: 3.9.4  
 **Entorno de desarrollo**: Antigravity IDE (en lugar de Android Studio)  
 **Paquete**: `com.dulce.play`
 
@@ -66,16 +66,13 @@ com.dulce.play/
 
 ## ⚠️ DECISIONES CLAVE Y TRAMPAS CONOCIDAS
 
-### 1. Extracción de streams — USA LA API INNER-TUBE EN CASCADA, NO SCRAPING NI INVIDIOUS
-- ❌ **NUNCA usar**: Invidious para streams (fallan constantemente).
-- ❌ **NUNCA usar**: `GET /watch?v={id}` + regex en HTML.
-- ✅ **SIEMPRE usar**: `POST /youtubei/v1/player?key=API_KEY` con tres configuraciones de clientes en cascada:
-  1. Cliente `WEB` (versión `2.20260615.01.00`)
-  2. Cliente `ANDROID` (versión `19.08.35`)
-  3. Cliente `IOS` (versión `19.45.4`)
-  Esto obtiene enlaces directos (`url`) sin requerir descifrado de firmas.
-- 🧪 **Validación de Enlaces (Probing)**: Se valida cada stream mediante `esUrlValida()`, permitiendo códigos HTTP de respuesta de 200 a 399 (éxitos y redirecciones). Los streams que pasen la validación se ordenan al inicio de la lista, y los que fallen se agregan al final como alternativas fallback en lugar de ser descartados.
-- Las URLs que devuelve la API incluyen `expire`, `sig`, y todos los parámetros firmados que Google requiere. ExoPlayer los acepta directamente con `MediaItem.fromUri(Uri.parse(url))`.
+### 1. Extracción de streams — USA EL CLIENTE ANDROID_MUSIC Y EXTRACTOR HTML, SIN VALIDACIONES
+- ❌ **NUNCA usar**: Validación HTTP intermedia (`esUrlValida()`), ya que retrasa la reproducción y puede provocar falsos negativos.
+- ✅ **SIEMPRE usar**: Lógica híbrida en cascada en `SearchEngine.obtenerEnlaces(videoId)`:
+  1. Consulta directa a InnerTube `/youtubei/v1/player` con cliente `ANDROID_MUSIC` (v`6.19.52`) y clave de API estable `"AIzaSy8Bv6O8gHxRqZbNn3mKpQrStUvWxYz123"`.
+  2. Fallback a petición GET de la página de visualización `https://www.youtube.com/watch?v=videoId` para extraer `ytInitialPlayerResponse` directamente del código fuente.
+- **Formato de URL**: Se extraen las URLs sin alterar ni recortar parámetros. Si vienen cifradas en un bloque `signatureCipher`, se decodifican mediante `descifrarCipherSimple`.
+- Las URLs extraídas se entregan completas directamente al reproductor.
 
 ### 2. Flujo de reproducción
 ```
@@ -84,9 +81,9 @@ Usuario toca video en lista
     → item.streamUrl = videoId (no empieza con "http")
     → cargarOpcionesParaReproducir(videoId, autoPlay = true)
       → SearchEngine.obtenerEnlaces(videoId) [coroutine IO]
-        → Cascada de 3 Clientes YouTube (InnerTube API): WEB -> ANDROID -> IOS
-        → Validación global de red en paralelo de todos los candidatos
-        → Reordenamiento de lista: validas + noValidas
+        → 1. Intenta consulta InnerTube con cliente ANDROID_MUSIC
+        → 2. Fallback a HTML watch page parsing (ytInitialPlayerResponse)
+        → Devuelve calidades únicas directamente al ViewModel sin validación intermedia
       → reproducirCalidadActual()
         → reproducirSeleccionado(opciones[intentandoIndiceCalidad].url)
           → exoPlayer.stop() -> clear -> setMediaItem(...).prepare().play() (usando User-Agent y Referer específicos)

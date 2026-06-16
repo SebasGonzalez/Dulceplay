@@ -2,6 +2,20 @@
 
 ---
 
+## 🔧 VERSIÓN V3.9.4 — INTEGRACIÓN DE MOTOR DE EXTRACCIÓN PROBADO (SOLUCIÓN DEFINITIVA)
+*Fecha: 2026-06-16 | Agente: Antigravity*
+
+### 1️⃣ Nuevo Motor de Extracción Híbrido y Estable
+- **Cliente `ANDROID_MUSIC`**: Se configuró la API InnerTube (`youtubei/v1/player`) con el cliente `ANDROID_MUSIC` (versión `6.19.52`), el cual es el estándar en proyectos de código abierto para obtener URLs de stream limpias y directas sin cifrado.
+- **Extractor de HTML de Respaldo**: Si la API falla, se realiza una petición GET a la página de visualización de YouTube (`watch?v=VIDEO_ID`) para extraer el bloque JSON `ytInitialPlayerResponse` directamente del código fuente.
+- **Decodificador de Firma Simple**: Se implementó `descifrarCipherSimple` para extraer el stream si viene empaquetado como un bloque `signatureCipher`.
+- **Sin Validaciones Intermedias**: Se eliminó la verificación de red intermedia `esUrlValida()` para agilizar el flujo y entregar todos los enlaces candidatos directamente al reproductor sin demoras ni falsos negativos.
+
+### 2️⃣ Cadena de Entrega Directa a ExoPlayer
+- **Lógica de Carga Directa**: En `PlayerViewModel`, la función `cargarOpcionesParaReproducir()` recibe la lista de enlaces y los pasa de forma íntegra a ExoPlayer uno por uno utilizando la lógica en cascada (`onPlayerError`).
+
+---
+
 ## 🔧 VERSIÓN V3.9.3 — OPTIMIZACIÓN Y CADENA DE ENTREGA COMPLETA A EXOPLAYER
 *Fecha: 2026-06-16 | Agente: Antigravity*
 

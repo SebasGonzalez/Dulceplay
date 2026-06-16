@@ -2,6 +2,20 @@
 
 ---
 
+## 🔧 VERSIÓN V3.9.3 — OPTIMIZACIÓN Y CADENA DE ENTREGA COMPLETA A EXOPLAYER
+*Fecha: 2026-06-16 | Agente: Antigravity*
+
+### 1️⃣ Parámetros de Red y Cabeceras en ExoPlayer
+- **ExoPlayer con Headers de Navegador**: Se reestructuró la inicialización de `exoPlayer` en `PlayerViewModel` utilizando `DefaultHttpDataSource.Factory` con un User-Agent de navegador Chrome Mobile y cabeceras de `Referer` y `Origin` apuntando a YouTube. Esto previene que los servidores de Google Video respondan con códigos de error `403 Forbidden`.
+- **Redirecciones cruzadas**: Se habilitó explícitamente `allowCrossProtocolRedirects = true` para que ExoPlayer siga automáticamente las redirecciones HTTP entre protocolos del CDN.
+
+### 2️⃣ Flujo de Reproducción en Cascada Activo (Fallback Automático)
+- **Carga de Calidades Ininterrumpida**: Modificada la lógica para que si hay al menos una opción disponible de stream en la lista (incluso las no validadas mediante red), intente reproducirla directamente en lugar de descartarla.
+- **Detector de Errores de ExoPlayer**: Se configuró `onPlayerError` para detectar si el enlace en reproducción falla en ExoPlayer. En ese caso, incrementa de manera automática el índice de calidad (`intentandoIndiceCalidad`) y reproduce el siguiente stream candidato disponible en la lista de calidades (`reproducirCalidadActual()`), mostrando el error final solo cuando todas las alternativas fallen.
+- **Logs de Streams en Búsqueda**: Se añadieron llamadas a `Log.d` en `SearchEngine.kt` para registrar en consola las URLs completas e intactas obtenidas de la API para cada itag extraído.
+
+---
+
 ## 🔧 VERSIÓN V3.9.2 — NUEVO MOTOR DE EXTRACCIÓN DIRECTA SEGURO Y ESTABLE (SOLUCIÓN DEFINITIVA)
 *Fecha: 2026-06-16 | Agente: Antigravity*
 

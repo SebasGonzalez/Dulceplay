@@ -11,7 +11,7 @@
 3. Reproduce con ExoPlayer (Media3)
 4. Tiene secciones: Explorar, Retro Player, IPTV Sat, Biblioteca, Ajustes
 
-**Versión actual**: 3.9.2  
+**Versión actual**: 3.9.3  
 **Entorno de desarrollo**: Antigravity IDE (en lugar de Android Studio)  
 **Paquete**: `com.dulce.play`
 
@@ -85,10 +85,12 @@ Usuario toca video en lista
     → cargarOpcionesParaReproducir(videoId, autoPlay = true)
       → SearchEngine.obtenerEnlaces(videoId) [coroutine IO]
         → Cascada de 3 Clientes YouTube (InnerTube API): WEB -> ANDROID -> IOS
-        → Validación global de red en paralelo de todos los candidatos (HEAD/GET Range)
+        → Validación global de red en paralelo de todos los candidatos
         → Reordenamiento de lista: validas + noValidas
-      → reproducirSeleccionado(opciones.first().url)
-        → exoPlayer.stop() -> clear -> setMediaItem(...).prepare().play()
+      → reproducirCalidadActual()
+        → reproducirSeleccionado(opciones[intentandoIndiceCalidad].url)
+          → exoPlayer.stop() -> clear -> setMediaItem(...).prepare().play() (usando User-Agent y Referer específicos)
+        → Si ExoPlayer lanza error (onPlayerError) → intentandoIndiceCalidad++ → reproducirCalidadActual()
 ```
 
 ### 3. ExoPlayer está en el ViewModel (NO en la UI)

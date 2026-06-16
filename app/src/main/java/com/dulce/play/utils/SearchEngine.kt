@@ -318,6 +318,7 @@ class SearchEngine {
                     val itag = s.optInt("itag", -1)
                     val rawUrl = s.optString("url", "")
                     if (rawUrl.isBlank()) continue
+                    Log.d("DULCEPLAY_VIDA", "Extracted URL formats itag $itag: $rawUrl")
                     when (itag) {
                         18 -> video18 = Calidad("Video 360p 📹 (Directo)", rawUrl, false)
                         22 -> video22 = Calidad("Video 720p HD 📹 (Directo)", rawUrl, false)
@@ -330,6 +331,7 @@ class SearchEngine {
                     val itag = s.optInt("itag", -1)
                     val rawUrl = s.optString("url", "")
                     if (rawUrl.isBlank()) continue
+                    Log.d("DULCEPLAY_VIDA", "Extracted URL adaptive itag $itag: $rawUrl")
                     
                     when (itag) {
                         140 -> audio140 = Calidad("Audio Alta Calidad 🎧 (Directo)", rawUrl, true)

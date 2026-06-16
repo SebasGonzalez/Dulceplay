@@ -323,7 +323,8 @@ class SearchEngine {
             }
             val code = con.responseCode
             Log.d("DULCEPLAY_VIDA", "Respuesta HEAD de URL: $code")
-            return@withContext (code == HttpURLConnection.HTTP_OK || code == 206)
+            // Permitir códigos 2xx (éxito) y 3xx (redirecciones como 301, 302, 303, 307, 308)
+            return@withContext (code in 200..399)
         } catch (e: Exception) {
             Log.w("DULCEPLAY_VIDA", "Error probando URL con HEAD: ${e.message}. Probando GET corto...")
             var conGet: HttpURLConnection? = null
@@ -339,7 +340,7 @@ class SearchEngine {
                 }
                 val codeGet = conGet.responseCode
                 Log.d("DULCEPLAY_VIDA", "Respuesta GET corto de URL: $codeGet")
-                return@withContext (codeGet == HttpURLConnection.HTTP_OK || codeGet == 206)
+                return@withContext (codeGet in 200..399)
             } catch (e2: Exception) {
                 Log.w("DULCEPLAY_VIDA", "GET corto también falló: ${e2.message}")
                 return@withContext false
@@ -354,22 +355,23 @@ class SearchEngine {
     private suspend fun extraerDirectoYouTube(videoId: String): List<Calidad> = withContext(Dispatchers.IO) {
         val lista = mutableListOf<Calidad>()
         val clientes = listOf(
-            Pair("ANDROID_TESTSUITE", "1.9"),
-            Pair("ANDROID_VR", "1.37")
+            Pair("ANDROID", "19.08.35"),
+            Pair("IOS", "19.45.4")
         )
+        val directApiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
 
         for ((clientName, clientVersion) in clientes) {
             var con: HttpURLConnection? = null
             try {
                 Log.d("DULCEPLAY_VIDA", "Fallback directo: intentando YouTubei con cliente $clientName ($clientVersion)")
-                val url = URL("https://www.youtube.com/youtubei/v1/player?key=$API_KEY")
+                val url = URL("https://www.youtube.com/youtubei/v1/player?key=$directApiKey")
                 con = url.openConnection() as HttpURLConnection
                 con.apply {
                     requestMethod = "POST"
                     setRequestProperty("Content-Type", "application/json")
                     setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-                    connectTimeout = 7000
-                    readTimeout = 7000
+                    connectTimeout = 8000
+                    readTimeout = 8000
                     doOutput = true
                 }
 
@@ -378,6 +380,17 @@ class SearchEngine {
                         put("client", JSONObject().apply {
                             put("clientName", clientName)
                             put("clientVersion", clientVersion)
+                            if (clientName == "ANDROID") {
+                                put("androidSdkVersion", 32)
+                                put("osName", "Android")
+                                put("osVersion", "12")
+                                put("platform", "MOBILE")
+                            } else if (clientName == "IOS") {
+                                put("deviceModel", "iPhone16,2")
+                                put("osName", "iOS")
+                                put("osVersion", "17.4")
+                                put("platform", "MOBILE")
+                            }
                         })
                     })
                     put("videoId", videoId)
@@ -389,52 +402,63 @@ class SearchEngine {
 
                 if (con.responseCode == HttpURLConnection.HTTP_OK) {
                     val texto = con.inputStream.use { it.bufferedReader().readText() }
+                    if (texto.isBlank()) {
+                        Log.w("DULCEPLAY_VIDA", "Respuesta vacía de YouTubei para el cliente $clientName")
+                        continue
+                    }
                     val json = JSONObject(texto)
                     val streamingData = json.optJSONObject("streamingData") ?: continue
 
-                    val streamsTemporales = mutableListOf<Calidad>()
+                    val formats = streamingData.optJSONArray("formats") ?: JSONArray()
+                    val adaptive = streamingData.optJSONArray("adaptiveFormats") ?: JSONArray()
+
+                    var audio140: Calidad? = null
+                    var audio251: Calidad? = null
+                    var otherAudio: Calidad? = null
+                    var video18: Calidad? = null
+                    var video22: Calidad? = null
 
                     // 1. formats (audio + video combinados)
-                    val formats = streamingData.optJSONArray("formats") ?: JSONArray()
                     for (i in 0 until formats.length()) {
                         val s = formats.getJSONObject(i)
                         val itag = s.optInt("itag", -1)
                         val rawUrl = s.optString("url", "")
                         if (rawUrl.isBlank()) continue
                         when (itag) {
-                            22 -> streamsTemporales.add(Calidad("Video 720p HD 📹 (Directo)", rawUrl, false))
-                            18 -> streamsTemporales.add(Calidad("Video 360p 📹 (Directo)", rawUrl, false))
+                            18 -> video18 = Calidad("Video 360p 📹 (Directo)", rawUrl, false)
+                            22 -> video22 = Calidad("Video 720p HD 📹 (Directo)", rawUrl, false)
                         }
                     }
 
                     // 2. adaptiveFormats (audio y video separados)
-                    val adaptive = streamingData.optJSONArray("adaptiveFormats") ?: JSONArray()
-                    var audioAgregado = false
-
                     for (i in 0 until adaptive.length()) {
                         val s = adaptive.getJSONObject(i)
                         val itag = s.optInt("itag", -1)
                         val rawUrl = s.optString("url", "")
                         if (rawUrl.isBlank()) continue
-                        if (itag == 251 || itag == 140) {
-                            streamsTemporales.add(0, Calidad("Audio Alta Calidad 🎧 (Directo)", rawUrl, true))
-                            audioAgregado = true
-                            break
-                        }
-                    }
-
-                    if (!audioAgregado) {
-                        for (i in 0 until adaptive.length()) {
-                            val s = adaptive.getJSONObject(i)
-                            val rawUrl = s.optString("url", "")
-                            if (rawUrl.isBlank()) continue
-                            val mimeType = s.optString("type", "").ifBlank { s.optString("mimeType", "") }
-                            if (mimeType.contains("audio")) {
-                                streamsTemporales.add(0, Calidad("Audio Alta Calidad 🎧 (Directo)", rawUrl, true))
-                                break
+                        
+                        when (itag) {
+                            140 -> audio140 = Calidad("Audio Alta Calidad 🎧 (Directo)", rawUrl, true)
+                            251 -> audio251 = Calidad("Audio Alta Calidad 🎧 (Directo)", rawUrl, true)
+                            18 -> if (video18 == null) video18 = Calidad("Video 360p 📹 (Directo)", rawUrl, false)
+                            22 -> if (video22 == null) video22 = Calidad("Video 720p HD 📹 (Directo)", rawUrl, false)
+                            else -> {
+                                val mimeType = s.optString("type", "").ifBlank { s.optString("mimeType", "") }
+                                if (mimeType.contains("audio") && otherAudio == null) {
+                                    otherAudio = Calidad("Audio Alta Calidad 🎧 (Directo)", rawUrl, true)
+                                }
                             }
                         }
                     }
+
+                    val streamsTemporales = mutableListOf<Calidad>()
+                    
+                    // Prioridades ordenadas: itag 140 (audio), 251 (alta calidad), 18 (360p), 22 (720p)
+                    audio140?.let { streamsTemporales.add(it) }
+                    audio251?.let { streamsTemporales.add(it) }
+                    otherAudio?.let { streamsTemporales.add(it) }
+                    video18?.let { streamsTemporales.add(it) }
+                    video22?.let { streamsTemporales.add(it) }
 
                     // Validar los enlaces obtenidos
                     if (streamsTemporales.isNotEmpty()) {
@@ -447,10 +471,12 @@ class SearchEngine {
                         }
                         if (validados.isNotEmpty()) {
                             lista.addAll(validados)
-                            Log.d("DULCEPLAY_VIDA", "✅ Extraídos directo de YouTube y validados ${validados.size} streams")
-                            break // Salir del bucle de clientes si funciona
+                            Log.d("DULCEPLAY_VIDA", "✅ Extraídos directo de YouTube y validados ${validados.size} streams con $clientName")
+                            break // Salir del bucle de clientes si funciona y tiene streams válidos
                         }
                     }
+                } else {
+                    Log.w("DULCEPLAY_VIDA", "Respuesta HTTP ${con.responseCode} de YouTubei con cliente $clientName")
                 }
             } catch (e: Exception) {
                 Log.e("DULCEPLAY_VIDA", "Error al extraer directo de YouTube con $clientName: ${e.message}")

@@ -51,7 +51,8 @@ com.dulce.play/
 
 ## 🔑 Claves y Configuraciones
 
-- **YouTube API Key**: `AIzaSyCrzrUscZ5kEW-rQte8yFxmc4E2xUcDm-Q` — hardcodeada en `SearchEngine.kt`
+- **YouTube API Key (Búsqueda)**: `AIzaSyCrzrUscZ5kEW-rQte8yFxmc4E2xUcDm-Q` — hardcodeada en `SearchEngine.kt`
+- **YouTube API Key (Plan B Directo)**: `AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8` — usada en `extraerDirectoYouTube`
 - **Instancias Invidious** (en orden de prioridad):
   1. `https://invidious.fdn.fr`
   2. `https://inv.nadeko.net`
@@ -70,7 +71,9 @@ com.dulce.play/
 - ✅ **SIEMPRE usar**: `GET /api/v1/videos/{videoId}?fields=adaptiveFormats,formatStreams`
   - `formatStreams` → video+audio combinados (itag 22=720p, 18=360p)
   - `adaptiveFormats` → audio solo (itag 251=Opus160k, 140=AAC128k) y video sin audio
-- Las URLs que devuelve esta API incluyen `expire`, `sig`, y todos los parámetros firmados que Google requiere.
+- 🌟 **Respaldo Plan B (Directo de YouTube)**: Si Invidious falla, se llama a `extraerDirectoYouTube(videoId)` enviando un POST a `/youtubei/v1/player?key=API_KEY` emulando clientes móviles `ANDROID` (v`19.08.35`) e `IOS` (v`19.45.4`). Esto obtiene enlaces directos (`url`) sin requerir descifrado de firmas.
+- 🧪 **Validación de Enlaces (Probing)**: Antes de enviar a ExoPlayer, se valida cada stream en paralelo mediante `esUrlValida()`, permitiendo códigos HTTP de respuesta de 200 a 399 (éxitos y redirecciones). Si falla, se prueba el siguiente formato para evitar el congelamiento en `00:00`.
+- Las URLs que devuelve la API incluyen `expire`, `sig`, y todos los parámetros firmados que Google requiere.
 - ExoPlayer los acepta directamente con `MediaItem.fromUri(Uri.parse(url))`.
 
 ### 2. Flujo de reproducción

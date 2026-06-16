@@ -2,24 +2,26 @@
 
 ---
 
-## 🔧 VERSIÓN V3.9.1 — PLAN B DE RESPALDO DOBLE Y CORRECCIÓN CRÍTICA DE ENLACES
+## 🔧 VERSIÓN V3.9.1 — PLAN B DE RESPALDO DOBLE REFORZADO Y CORRECCIÓN DE ENLACES
 *Fecha: 2026-06-16 | Agente: Antigravity / Gemini 3.5 Flash*
 
 ### 1️⃣ Búsqueda en Cascada de Servidores Invidious Confiables
 - **Servidores de Respaldo**: Se actualizó `INVIDIOUS_INSTANCES` con una lista robusta de 6 instancias estables (fdn.fr, nadeko.net, privacydev.net, lunar.icu, riverside.rocks, nerdvpn.de).
 - **Fallback Automático**: El motor intenta obtener enlaces primero mediante proxy (`local=true`) y luego sin proxy, pasando automáticamente al siguiente de la lista si falla, de manera totalmente silenciosa para el usuario.
 
-### 2️⃣ Plan B: Extracción Directa de YouTube (YouTubei Fallback)
-- **Extracción Directa de Respaldo**: Si todas las instancias de Invidious fallan, se activa automáticamente la función `extraerDirectoYouTube(videoId)`.
-- **InnerTube API (YouTubei)**: Realiza un POST al endpoint de reproducción `/youtubei/v1/player` utilizando la API Key del proyecto y emulando clientes oficiales (`ANDROID_TESTSUITE` v1.9 y `ANDROID_VR` v1.37) que obtienen los enlaces directos sin cifrado de firmas ni errores 403.
+### 2️⃣ Plan B Reforzado: Extracción Directa de YouTube (InnerTube API)
+- **Extracción Directa de Respaldo**: Si todas las instancias de Invidious fallan, se activa de forma garantizada y directa la función `extraerDirectoYouTube(videoId)`.
+- **Nuevos Clientes Oficiales**: Se configuró la emulación de los clientes móviles `ANDROID` (v`19.08.35`) e `IOS` (v`19.45.4`) con simulación de SDK y sistema operativo para máxima estabilidad.
+- **Clave API Oficial**: Se configuró la clave de API oficial `AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8` para las solicitudes.
+- **Timeout y Priorización**: Aumentado a 8 segundos para evitar cortes por lentitud de red y se priorizan de forma ordenada los itags: 140 (audio), 251 (alta calidad), 18 (360p), 22 (720p).
 
-### 3️⃣ Validación Rápica de Enlaces (Probing)
-- **Función `esUrlValida(urlStream)`**: Valida cada enlace en paralelo (mediante `async` + `awaitAll`) antes de enviarlo al reproductor.
-- **HEAD / GET Corto**: Realiza una petición `HEAD` con redirección automática y timeout de 3s. Si falla, cae en un `GET` corto con `Range: bytes=0-1023` (descarga solo 1KB). Evita congelamientos en `00:00` al descartar enlaces caídos.
+### 3️⃣ Validación de Red de Enlaces Mejorada
+- **Soporte de Redirecciones**: La función `esUrlValida()` ahora valida estados exitosos y redirecciones (códigos HTTP en el rango 200..399 como 301, 302, 303, 307, 308).
+- **Fallback de Formato**: Si la validación falla para un stream, se descarta y prueba el siguiente formato o cliente de manera automática, previniendo el congelamiento en `00:00`.
 
 ### 4️⃣ Ajustes de Autoplay y Mensajes de Error en PlayerViewModel
 - **Reproducción Inmediata**: Las funciones `playMedia` y `cargarOpcionesParaReproducir` ahora tienen `autoPlay = true` por defecto.
-- **Mensaje de Error Claro**: Se actualizó el mensaje de error de reproducción a: `"No se pudo reproducir este contenido en este momento"`.
+- **Mensaje de Error Claro**: Se muestra el aviso `"No se pudo reproducir este contenido en este momento"` de forma exclusiva tras agotarse tanto Invidious como el respaldo directo.
 
 ---
 

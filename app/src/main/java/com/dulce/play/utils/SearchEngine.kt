@@ -175,43 +175,30 @@ class SearchEngine {
         val maxIntentos = 3
 
         for (intento in 1..maxIntentos) {
-            Log.d("DULCEPLAY_VIDA", "🔄 Intento $intento de extracción directa para $videoId")
-            
-            // 1. Intentar con cliente ANDROID_MUSIC en youtubei (máxima velocidad y estabilidad)
+            Log.d("DULCEPLAY_VIDA", "🔄 Intento $intento de extracción directa (ANDROID_MUSIC v6.19.52) para $videoId")
             try {
-                val opcionesAndroidMusic = extraerDirectoYouTubeConCliente("ANDROID_MUSIC", "6.19.52", videoId)
-                if (opcionesAndroidMusic.isNotEmpty()) {
-                    lista.addAll(opcionesAndroidMusic)
+                val opciones = extraerDirectoYouTubeConCliente("ANDROID_MUSIC", "6.19.52", videoId)
+                if (opciones.isNotEmpty()) {
+                    lista.addAll(opciones)
+                    break
                 }
             } catch (e: Exception) {
                 Log.e("DULCEPLAY_VIDA", "Fallo cliente ANDROID_MUSIC: ${e.message}")
             }
-
-            // 2. Si falló, intentar parseando la página HTML para extraer ytInitialPlayerResponse
-            if (lista.isEmpty()) {
-                Log.d("DULCEPLAY_VIDA", "Intentando extraer de página HTML para $videoId")
-                val opcionesHtml = extraerDePaginaHtml(videoId)
-                if (opcionesHtml.isNotEmpty()) {
-                    lista.addAll(opcionesHtml)
-                }
-            }
-
-            if (lista.isNotEmpty()) {
-                break
-            }
-
             if (intento < maxIntentos) {
                 kotlinx.coroutines.delay(500)
             }
         }
 
         if (lista.isEmpty()) {
-            Log.e("DULCEPLAY_VIDA", "❌ Todos los métodos de extracción fallaron para $videoId tras $maxIntentos intentos")
+            Log.e("DULCEPLAY_VIDA", "❌ Todos los intentos de extracción directa fallaron para $videoId")
         }
 
-        // NO usar validaciones intermedias: entregar todas las opciones al reproductor
-        val calidadesUnicas = lista.distinctBy { it.url }
-        Log.d("DULCEPLAY_VIDA", "Retornando ${calidadesUnicas.size} calidades directas al reproductor sin validación.")
+        // Devolver máximo 2 enlaces, ordenados: audio primero, luego video
+        val ordenadas = lista.sortedWith(compareByDescending { it.esAudio })
+        val calidadesUnicas = ordenadas.distinctBy { it.url }.take(2)
+        
+        Log.d("DULCEPLAY_VIDA", "Retornando ${calidadesUnicas.size} calidades al reproductor sin validación.")
         for (calidad in calidadesUnicas) {
             Log.d("DULCEPLAY_VIDA", "Stream URL: ${calidad.nombre} -> ${calidad.url}")
         }
@@ -219,7 +206,7 @@ class SearchEngine {
     }
 
     private suspend fun extraerDirectoYouTubeConCliente(clientName: String, clientVersion: String, videoId: String): List<Calidad> = withContext(Dispatchers.IO) {
-        val fallbackApiKey = "AIzaSy8Bv6O8gHxRqZbNn3mKpQrStUvWxYz123"
+        val fallbackApiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
         var con: HttpURLConnection? = null
         try {
             Log.d("DULCEPLAY_VIDA", "Extrayendo con cliente YouTubei: $clientName ($clientVersion)")
@@ -367,62 +354,37 @@ class SearchEngine {
         val adaptive = streamingData.optJSONArray("adaptiveFormats") ?: JSONArray()
 
         var audio140: Calidad? = null
-        var audio251: Calidad? = null
-        var otherAudio: Calidad? = null
         var video18: Calidad? = null
-        var video22: Calidad? = null
 
-        // 1. formats (audio + video combinados)
-        for (i in 0 until formats.length()) {
-            val s = formats.getJSONObject(i)
+        fun procesarFormato(s: JSONObject) {
             val itag = s.optInt("itag", -1)
-            var rawUrl = s.optString("url", "")
-            if (rawUrl.isBlank()) {
-                val cipher = s.optString("signatureCipher", "").ifBlank { s.optString("cipher", "") }
-                if (cipher.isNotBlank()) {
-                    rawUrl = descifrarCipherSimple(cipher)
+            if (itag == 140 || itag == 18) {
+                var rawUrl = s.optString("url", "")
+                if (rawUrl.isBlank()) {
+                    val cipher = s.optString("signatureCipher", "").ifBlank { s.optString("cipher", "") }
+                    if (cipher.isNotBlank()) {
+                        rawUrl = descifrarCipherSimple(cipher)
+                    }
                 }
-            }
-            if (rawUrl.isBlank()) continue
-            
-            when (itag) {
-                18 -> video18 = Calidad("Video 360p 📹 (Directo)", rawUrl, false)
-                22 -> video22 = Calidad("Video 720p HD 📹 (Directo)", rawUrl, false)
-            }
-        }
-
-        // 2. adaptiveFormats (audio y video separados)
-        for (i in 0 until adaptive.length()) {
-            val s = adaptive.getJSONObject(i)
-            val itag = s.optInt("itag", -1)
-            var rawUrl = s.optString("url", "")
-            if (rawUrl.isBlank()) {
-                val cipher = s.optString("signatureCipher", "").ifBlank { s.optString("cipher", "") }
-                if (cipher.isNotBlank()) {
-                    rawUrl = descifrarCipherSimple(cipher)
-                }
-            }
-            if (rawUrl.isBlank()) continue
-            
-            when (itag) {
-                140 -> audio140 = Calidad("Audio Alta Calidad 🎧 (Directo)", rawUrl, true)
-                251 -> audio251 = Calidad("Audio Alta Calidad 🎧 (Directo)", rawUrl, true)
-                18 -> if (video18 == null) video18 = Calidad("Video 360p 📹 (Directo)", rawUrl, false)
-                22 -> if (video22 == null) video22 = Calidad("Video 720p HD 📹 (Directo)", rawUrl, false)
-                else -> {
-                    val mimeType = s.optString("type", "").ifBlank { s.optString("mimeType", "") }
-                    if (mimeType.contains("audio") && otherAudio == null) {
-                        otherAudio = Calidad("Audio Alta Calidad 🎧 (Directo)", rawUrl, true)
+                if (rawUrl.isNotBlank()) {
+                    if (itag == 140) {
+                        audio140 = Calidad("Audio AAC 🎧 (Directo)", rawUrl, true)
+                    } else {
+                        video18 = Calidad("Video 360p 📹 (Directo)", rawUrl, false)
                     }
                 }
             }
         }
 
+        for (i in 0 until formats.length()) {
+            procesarFormato(formats.getJSONObject(i))
+        }
+        for (i in 0 until adaptive.length()) {
+            procesarFormato(adaptive.getJSONObject(i))
+        }
+
         audio140?.let { list.add(it) }
-        audio251?.let { list.add(it) }
-        otherAudio?.let { list.add(it) }
         video18?.let { list.add(it) }
-        video22?.let { list.add(it) }
 
         return list
     }

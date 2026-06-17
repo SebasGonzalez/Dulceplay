@@ -11,7 +11,7 @@
 3. Reproduce con ExoPlayer (Media3)
 4. Tiene secciones: Explorar, Retro Player, IPTV Sat, Biblioteca, Ajustes
 
-**Versión actual**: 3.9.4  
+**Versión actual**: 3.9.5  
 **Entorno de desarrollo**: Antigravity IDE (en lugar de Android Studio)  
 **Paquete**: `com.dulce.play`
 
@@ -52,7 +52,7 @@ com.dulce.play/
 ## 🔑 Claves y Configuraciones
 
 - **YouTube API Key (Búsqueda)**: `AIzaSyCrzrUscZ5kEW-rQte8yFxmc4E2xUcDm-Q` — hardcodeada en `SearchEngine.kt`
-- **YouTube API Key (Extracción)**: `AIzaSy8Bv6O8gHxRqZbNn3mKpQrStUvWxYz123` — clave de respaldo estable usada en `extraerDirectoYouTubeConCliente`
+- **YouTube API Key (Extracción)**: `AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8` — clave de reproducción probada usada en `extraerDirectoYouTubeConCliente`
 - **Instancias Invidious** (Solo Búsqueda Fallback):
   1. `https://invidious.fdn.fr`
   2. `https://inv.nadeko.net`
@@ -66,13 +66,12 @@ com.dulce.play/
 
 ## ⚠️ DECISIONES CLAVE Y TRAMPAS CONOCIDAS
 
-### 1. Extracción de streams — USA EL CLIENTE ANDROID_MUSIC Y EXTRACTOR HTML, SIN VALIDACIONES
+### 1. Extracción de streams — USA ÚNICAMENTE EL CLIENTE ANDROID_MUSIC, SIN VALIDACIONES
 - ❌ **NUNCA usar**: Validación HTTP intermedia (`esUrlValida()`), ya que retrasa la reproducción y puede provocar falsos negativos.
-- ✅ **SIEMPRE usar**: Lógica híbrida en cascada en `SearchEngine.obtenerEnlaces(videoId)`:
-  1. Consulta directa a InnerTube `/youtubei/v1/player` con cliente `ANDROID_MUSIC` (v`6.19.52`) y clave de API estable `"AIzaSy8Bv6O8gHxRqZbNn3mKpQrStUvWxYz123"`.
-  2. Fallback a petición GET de la página de visualización `https://www.youtube.com/watch?v=videoId` para extraer `ytInitialPlayerResponse` directamente del código fuente.
-- **Formato de URL**: Se extraen las URLs sin alterar ni recortar parámetros. Si vienen cifradas en un bloque `signatureCipher`, se decodifican mediante `descifrarCipherSimple`.
-- Las URLs extraídas se entregan completas directamente al reproductor.
+- ✅ **SIEMPRE usar**: Consulta directa a InnerTube `/youtubei/v1/player` con cliente `ANDROID_MUSIC` (v`6.19.52`) y clave de API probada `"AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"`.
+- **Filtro de Formatos**: Extraer únicamente `itag=140` (Audio AAC) e `itag=18` (Video 360p + Audio). Ignorar cualquier otro formato adaptativo complejo.
+- **Firma Automática**: Se extraen las URLs sin alterar ni recortar parámetros. Si vienen cifradas en un bloque `signatureCipher`, se decodifican mediante `descifrarCipherSimple`.
+- Las URLs extraídas se entregan ordenadas (audio primero, luego video) con un máximo de 2 enlaces únicos.
 
 ### 2. Flujo de reproducción
 ```
@@ -81,13 +80,12 @@ Usuario toca video en lista
     → item.streamUrl = videoId (no empieza con "http")
     → cargarOpcionesParaReproducir(videoId, autoPlay = true)
       → SearchEngine.obtenerEnlaces(videoId) [coroutine IO]
-        → 1. Intenta consulta InnerTube con cliente ANDROID_MUSIC
-        → 2. Fallback a HTML watch page parsing (ytInitialPlayerResponse)
+        → Consulta InnerTube con cliente ANDROID_MUSIC
         → Devuelve calidades únicas directamente al ViewModel sin validación intermedia
       → reproducirCalidadActual()
         → reproducirSeleccionado(opciones[intentandoIndiceCalidad].url)
-          → exoPlayer.stop() -> clear -> setMediaItem(...).prepare().play() (usando User-Agent y Referer específicos)
-        → Si ExoPlayer lanza error (onPlayerError) → intentandoIndiceCalidad++ → reproducirCalidadActual()
+          → exoPlayer.stop() -> clear -> setMediaItem(...).prepare().play() (usando User-Agent y Referer específicos de YouTube Music)
+        → Si ExoPlayer lanza error (onPlayerError) → Reintenta una vez más la misma calidad. Si vuelve a fallar → intentandoIndiceCalidad++ → reproducirCalidadActual()
 ```
 
 ### 3. ExoPlayer está en el ViewModel (NO en la UI)
@@ -163,4 +161,4 @@ DULCE-BOT:
 5. **No usar youtube-dl para extracción de streams** (ya está en build.gradle pero no implementado en el flujo actual — lo hace Invidious API)
 
 ---
-*Última actualización: 2026-06-16 | Versión: 3.9.1*
+*Última actualización: 2026-06-16 | Versión: 3.9.5*

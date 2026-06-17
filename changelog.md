@@ -2,6 +2,21 @@
 
 ---
 
+## 🔧 VERSIÓN V3.9.5 — SISTEMA DE REPRODUCCIÓN SIMPLIFICADO Y ROBUSTO
+*Fecha: 2026-06-16 | Agente: Antigravity*
+
+### 1️⃣ Extractor Simplificado en SearchEngine
+- **ANDROID_MUSIC v6.19.52**: Se configuró para usar ÚNICAMENTE este cliente con la clave API oficial y probada `"AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"`. Se eliminaron fallbacks complejos de red, raspados de HTML y clientes alternativos para evitar conflictos.
+- **Filtrado y Ordenación de Itags**: Se limitó la extracción exclusivamente a `itag=140` (Audio AAC) e `itag=18` (Video 360p + Audio). Los resultados se ordenan colocando el audio de primero y se limita a un máximo de 2 enlaces únicos para el reproductor.
+- **Firma Automática**: Se realiza la decodificación automática y limpia de `signatureCipher` cuando se presenta en el stream.
+
+### 2️⃣ Simplificación de ExoPlayer y Lógica de Reintentos en PlayerViewModel
+- **DataSource Simplificado**: Se reconfiguró ExoPlayer utilizando `DefaultDataSource.Factory` envolviendo un `DefaultHttpDataSource.Factory`.
+- **Cabeceras de YouTube Music**: Se configuró el User-Agent exacto de YouTube Music (`com.google.android.youtube.music/6.19.52 (Linux; Android 14)`) y la cabecera `Referer` (`https://music.youtube.com/`).
+- **Timeout y Reintentos**: Aumentado el timeout de conexión y lectura a 12 segundos. Se implementó una lógica de un reintento para la calidad actual en `onPlayerError` (borrando buffer/estado mediante reset) antes de saltar a la siguiente calidad o mostrar el error.
+
+---
+
 ## 🔧 VERSIÓN V3.9.4 — INTEGRACIÓN DE MOTOR DE EXTRACCIÓN PROBADO (SOLUCIÓN DEFINITIVA)
 *Fecha: 2026-06-16 | Agente: Antigravity*
 

@@ -49,15 +49,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     @OptIn(androidx.media3.common.util.UnstableApi::class)
     val exoPlayer: ExoPlayer = run {
         val httpDataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
-            .setUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36")
+            .setUserAgent("com.google.android.youtube.music/6.19.52 (Linux; Android 14)")
             .setDefaultRequestProperties(mapOf(
-                "Referer" to "https://www.youtube.com/",
-                "Origin" to "https://www.youtube.com"
+                "Referer" to "https://music.youtube.com/"
             ))
+            .setConnectTimeoutMs(12000)
+            .setReadTimeoutMs(12000)
             .setAllowCrossProtocolRedirects(true)
         
+        val dataSourceFactory = androidx.media3.datasource.DefaultDataSource.Factory(application, httpDataSourceFactory)
+        
         val mediaSourceFactory = androidx.media3.exoplayer.source.DefaultMediaSourceFactory(application)
-            .setDataSourceFactory(httpDataSourceFactory)
+            .setDataSourceFactory(dataSourceFactory)
 
         ExoPlayer.Builder(application)
             .setMediaSourceFactory(mediaSourceFactory)
@@ -260,6 +263,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val motor = SearchEngine()
     private var intentandoIndiceCalidad = 0
+    private var reintentosCalidadActual = 0
 
     init {
         val pi = PendingIntent.getActivity(application, 0, Intent(application, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
@@ -284,10 +288,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 Log.e("DULCEPLAY_VIDA", "❌ ERROR EXOPLAYER: ${error.message} (código: ${error.errorCode})")
                 val opciones = _listaCalidades.value
-                if (opciones.isNotEmpty() && intentandoIndiceCalidad + 1 < opciones.size) {
-                    intentandoIndiceCalidad++
-                    Log.w("DULCEPLAY_VIDA", "ExoPlayer falló, intentando siguiente calidad: index $intentandoIndiceCalidad")
-                    reproducirCalidadActual()
+                if (opciones.isNotEmpty()) {
+                    if (reintentosCalidadActual < 1) {
+                        reintentosCalidadActual++
+                        Log.w("DULCEPLAY_VIDA", "ExoPlayer falló. Reintentando calidad actual index $intentandoIndiceCalidad (intento $reintentosCalidadActual/1)...")
+                        reproducirCalidadActual()
+                    } else if (intentandoIndiceCalidad + 1 < opciones.size) {
+                        intentandoIndiceCalidad++
+                        reintentosCalidadActual = 0
+                        Log.w("DULCEPLAY_VIDA", "ExoPlayer falló tras reintentar. Intentando siguiente calidad: index $intentandoIndiceCalidad")
+                        reproducirCalidadActual()
+                    } else {
+                        _mediaError.value = "No se pudo reproducir este contenido en este momento"
+                    }
                 } else {
                     _mediaError.value = "No se pudo reproducir este contenido en este momento"
                 }
@@ -337,6 +350,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _isSearching.value = true
             _listaCalidades.value = emptyList() // Limpiar opciones anteriores mientras carga
             _mediaError.value = null
+            reintentosCalidadActual = 0
             Log.d("DULCEPLAY_VIDA", "🔍 Extrayendo streams para: $videoId")
             val opciones = motor.obtenerEnlaces(videoId)
             _listaCalidades.value = opciones
@@ -413,6 +427,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             cargarOpcionesParaReproducir(m.streamUrl, autoPlay)
         } else {
             intentandoIndiceCalidad = 0
+            reintentosCalidadActual = 0
             _listaCalidades.value = emptyList()
             reproducirSeleccionado(m.streamUrl)
         }

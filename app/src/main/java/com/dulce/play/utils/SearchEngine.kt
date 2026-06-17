@@ -25,14 +25,14 @@ import kotlinx.coroutines.coroutineScope
 class SearchEngine {
     private val API_KEY = "AIzaSyCrzrUscZ5kEW-rQte8yFxmc4E2xUcDm-Q"
 
-    // Instancias de Invidious ordenadas por confiabilidad
+    // Instancias de Invidious ordenadas por confiabilidad y uptime
     private val INVIDIOUS_INSTANCES = listOf(
-        "https://invidious.fdn.fr",
         "https://inv.nadeko.net",
-        "https://invidious.privacydev.net",
-        "https://invidious.lunar.icu",
-        "https://inv.riverside.rocks",
-        "https://invidious.nerdvpn.de"
+        "https://invidious.nerdvpn.de",
+        "https://invidious.f5.si",
+        "https://yt.chocolatemoo53.com",
+        "https://inv.thepixora.com",
+        "https://invidious.fdn.fr"
     )
 
     // ─────────────────────────────────────────────────────────────
@@ -172,35 +172,87 @@ class SearchEngine {
     // ─────────────────────────────────────────────────────────────
     suspend fun obtenerEnlaces(videoId: String): List<Calidad> = withContext(Dispatchers.IO) {
         val lista = mutableListOf<Calidad>()
-        val maxIntentos = 3
-
-        for (intento in 1..maxIntentos) {
-            Log.d("DULCEPLAY_VIDA", "🔄 Intento $intento de extracción directa (ANDROID_MUSIC v6.19.52) para $videoId")
+        
+        // 1. Intentar con Invidious API y proxying
+        for (instancia in INVIDIOUS_INSTANCES) {
+            var con: HttpURLConnection? = null
             try {
-                val opciones = extraerDirectoYouTubeConCliente("ANDROID_MUSIC", "6.19.52", videoId)
-                if (opciones.isNotEmpty()) {
-                    lista.addAll(opciones)
-                    break
+                Log.d("DULCEPLAY_VIDA", "Intentando obtener stream en Invidious: $instancia para $videoId")
+                val urlString = "$instancia/api/v1/videos/$videoId?local=true"
+                val url = URL(urlString)
+                con = url.openConnection() as HttpURLConnection
+                con.apply {
+                    requestMethod = "GET"
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14)")
+                    connectTimeout = 8000
+                    readTimeout = 8000
+                }
+
+                if (con.responseCode == HttpURLConnection.HTTP_OK) {
+                    val texto = con.inputStream.use { it.bufferedReader().readText() }
+                    val json = JSONObject(texto)
+                    
+                    val formats = json.optJSONArray("formatStreams") ?: JSONArray()
+                    val adaptive = json.optJSONArray("adaptiveFormats") ?: JSONArray()
+                    
+                    var audio140: Calidad? = null
+                    var video18: Calidad? = null
+
+                    fun procesarStream(s: JSONObject) {
+                        val itag = s.optInt("itag", -1)
+                        if (itag == 140 || itag == 18) {
+                            var streamUrl = s.optString("url", "")
+                            if (streamUrl.isNotBlank()) {
+                                streamUrl = formatearUrlProxyInvidious(streamUrl, instancia)
+                                if (itag == 140) {
+                                    audio140 = Calidad("Audio AAC 🎧 (Proxy)", streamUrl, true)
+                                } else {
+                                    video18 = Calidad("Video 360p 📹 (Proxy)", streamUrl, false)
+                                }
+                            }
+                        }
+                    }
+
+                    for (i in 0 until formats.length()) {
+                        procesarStream(formats.getJSONObject(i))
+                    }
+                    for (i in 0 until adaptive.length()) {
+                        procesarStream(adaptive.getJSONObject(i))
+                    }
+
+                    audio140?.let { lista.add(it) }
+                    video18?.let { lista.add(it) }
+
+                    if (lista.isNotEmpty()) {
+                        Log.d("DULCEPLAY_VIDA", "✅ Extracción exitosa desde Invidious: $instancia, calidades obtenidas: ${lista.size}")
+                        break
+                    }
                 }
             } catch (e: Exception) {
-                Log.e("DULCEPLAY_VIDA", "Fallo cliente ANDROID_MUSIC: ${e.message}")
-            }
-            if (intento < maxIntentos) {
-                kotlinx.coroutines.delay(500)
+                Log.e("DULCEPLAY_VIDA", "Fallo extracción en $instancia: ${e.message}")
+            } finally {
+                con?.disconnect()
             }
         }
 
+        // 2. Fallback a extracción directa de YouTube si Invidious falló
         if (lista.isEmpty()) {
-            Log.e("DULCEPLAY_VIDA", "❌ Todos los intentos de extracción directa fallaron para $videoId")
+            Log.d("DULCEPLAY_VIDA", "⚠️ Invidious falló, activando fallback de extracción directa (ANDROID_MUSIC)")
+            try {
+                val opciones = extraerDirectoYouTubeConCliente("ANDROID_MUSIC", "6.19.52", videoId)
+                lista.addAll(opciones)
+            } catch (e: Exception) {
+                Log.e("DULCEPLAY_VIDA", "Fallo fallback directo: ${e.message}")
+            }
         }
 
         // Devolver máximo 2 enlaces, ordenados: audio primero, luego video
         val ordenadas = lista.sortedWith(compareByDescending { it.esAudio })
         val calidadesUnicas = ordenadas.distinctBy { it.url }.take(2)
         
-        Log.d("DULCEPLAY_VIDA", "Retornando ${calidadesUnicas.size} calidades al reproductor sin validación.")
+        Log.d("DULCEPLAY_VIDA", "Retornando ${calidadesUnicas.size} calidades al reproductor.")
         for (calidad in calidadesUnicas) {
-            Log.d("DULCEPLAY_VIDA", "Stream URL: ${calidad.nombre} -> ${calidad.url}")
+            Log.d("DULCEPLAY_VIDA", "Stream URL: ${calidad.nombre} -> ${calidad.url.take(80)}...")
         }
         return@withContext calidadesUnicas
     }
@@ -414,6 +466,28 @@ class SearchEngine {
             return url
         } catch (e: Exception) {
             return ""
+        }
+    }
+
+    private fun formatearUrlProxyInvidious(url: String, instancia: String): String {
+        return try {
+            if (url.startsWith("/")) {
+                // Es una URL relativa, concatenar directamente con la instancia
+                "$instancia$url"
+            } else if (url.contains("googlevideo.com/videoplayback")) {
+                // Es una URL absoluta de Google Video. Reemplazar el host por la instancia para forzar proxy
+                val index = url.indexOf("/videoplayback")
+                if (index != -1) {
+                    val pathAndQuery = url.substring(index)
+                    "$instancia$pathAndQuery"
+                } else {
+                    url
+                }
+            } else {
+                url
+            }
+        } catch (e: Exception) {
+            url
         }
     }
 

@@ -49,9 +49,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     @OptIn(androidx.media3.common.util.UnstableApi::class)
     val exoPlayer: ExoPlayer = run {
         val httpDataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
-            .setUserAgent("com.google.android.youtube.music/6.19.52 (Linux; Android 14)")
+            .setUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36")
             .setDefaultRequestProperties(mapOf(
-                "Referer" to "https://music.youtube.com/"
+                "Referer" to "https://www.youtube.com/"
             ))
             .setConnectTimeoutMs(12000)
             .setReadTimeoutMs(12000)

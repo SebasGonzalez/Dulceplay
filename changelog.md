@@ -2,6 +2,21 @@
 
 ---
 
+## 🔧 VERSIÓN V3.9.6 — REPRODUCCIÓN MEDIANTE PROXY INVIDIOUS (CORRECCIÓN DE ERROR 403)
+*Fecha: 2026-06-16 | Agente: Antigravity*
+
+### 1️⃣ Enrutamiento por Proxy de Invidious
+- **Proxy dinámico de streams**: Se reestructuró la función `obtenerEnlaces` para consultar instancias de Invidious activas con el parámetro `local=true`.
+- **formatearUrlProxyInvidious**: Se implementó una lógica que intercepta URLs relativas y absolutas de Google Video (`googlevideo.com`) y las reescribe utilizando el dominio de la instancia de Invidious seleccionada. Esto hace que las solicitudes pasen por el proxy de Invidious, eliminando el error de IP y firma (HTTP 403 Forbidden).
+- **Lista de instancias actualizada**: Se reordenó `INVIDIOUS_INSTANCES` según su disponibilidad y proximidad regional (uptime verificado: `inv.nadeko.net`, `invidious.nerdvpn.de`, `invidious.f5.si`).
+- **Plan de Fallback**: Si las instancias de Invidious fallan, se recurre automáticamente al extractor directo `ANDROID_MUSIC` como respaldo final.
+
+### 2️⃣ Ajustes de ExoPlayer en PlayerViewModel
+- **User-Agent genérico de navegador**: Se reemplazó el User-Agent específico de YouTube Music por uno estándar de navegador móvil compatible con el proxy de Invidious, IPTV y streams genéricos.
+- **Referer compatible**: Se cambió el referer de ExoPlayer a `https://www.youtube.com/` para asegurar la aceptación del proxy.
+
+---
+
 ## 🔧 VERSIÓN V3.9.5 — SISTEMA DE REPRODUCCIÓN SIMPLIFICADO Y ROBUSTO
 *Fecha: 2026-06-16 | Agente: Antigravity*
 

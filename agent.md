@@ -11,7 +11,7 @@
 3. Reproduce con ExoPlayer (Media3)
 4. Tiene secciones: Explorar, Retro Player, IPTV Sat, Biblioteca, Ajustes
 
-**Versión actual**: 3.9.5  
+**Versión actual**: 3.9.6  
 **Entorno de desarrollo**: Antigravity IDE (en lugar de Android Studio)  
 **Paquete**: `com.dulce.play`
 
@@ -66,12 +66,12 @@ com.dulce.play/
 
 ## ⚠️ DECISIONES CLAVE Y TRAMPAS CONOCIDAS
 
-### 1. Extracción de streams — USA ÚNICAMENTE EL CLIENTE ANDROID_MUSIC, SIN VALIDACIONES
-- ❌ **NUNCA usar**: Validación HTTP intermedia (`esUrlValida()`), ya que retrasa la reproducción y puede provocar falsos negativos.
-- ✅ **SIEMPRE usar**: Consulta directa a InnerTube `/youtubei/v1/player` con cliente `ANDROID_MUSIC` (v`6.19.52`) y clave de API probada `"AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"`.
-- **Filtro de Formatos**: Extraer únicamente `itag=140` (Audio AAC) e `itag=18` (Video 360p + Audio). Ignorar cualquier otro formato adaptativo complejo.
-- **Firma Automática**: Se extraen las URLs sin alterar ni recortar parámetros. Si vienen cifradas en un bloque `signatureCipher`, se decodifican mediante `descifrarCipherSimple`.
-- Las URLs extraídas se entregan ordenadas (audio primero, luego video) con un máximo de 2 enlaces únicos.
+### 1. Extracción de streams — REPRODUCCIÓN POR PROXY DE INVIDIOUS (REDUCCIÓN DE ERROR 403)
+- ❌ **NUNCA usar**: URLs directas de Google Video de forma directa sin proxy, ya que causan errores HTTP 403 Forbidden por discrepancia de IP y firmas.
+- ✅ **SIEMPRE usar**: Consulta a la API JSON de Invidious (`/api/v1/videos/{id}?local=true`) y enrutar a través del endpoint de proxy `/videoplayback` de la instancia de Invidious correspondiente.
+- **Firma y Host**: La función `formatearUrlProxyInvidious` reemplaza el host de Google Video (`*.googlevideo.com`) por el dominio del servidor Invidious para que el servidor Invidious actúe como proxy.
+- **Filtro de Formatos**: Extraer únicamente `itag=140` (Audio AAC) e `itag=18` (Video 360p + Audio).
+- **Fallback**: Si las instancias de Invidious fallan, se recurre a la extracción directa de InnerTube `ANDROID_MUSIC` como plan de respaldo final.
 
 ### 2. Flujo de reproducción
 ```
@@ -80,11 +80,12 @@ Usuario toca video en lista
     → item.streamUrl = videoId (no empieza con "http")
     → cargarOpcionesParaReproducir(videoId, autoPlay = true)
       → SearchEngine.obtenerEnlaces(videoId) [coroutine IO]
-        → Consulta InnerTube con cliente ANDROID_MUSIC
-        → Devuelve calidades únicas directamente al ViewModel sin validación intermedia
+        → 1. Consulta la API de Invidious con local=true y enruta la URL mediante el proxy de la instancia
+        → 2. Fallback a InnerTube ANDROID_MUSIC si Invidious falla
+        → Devuelve calidades enrutadas directamente al ViewModel
       → reproducirCalidadActual()
         → reproducirSeleccionado(opciones[intentandoIndiceCalidad].url)
-          → exoPlayer.stop() -> clear -> setMediaItem(...).prepare().play() (usando User-Agent y Referer específicos de YouTube Music)
+          → exoPlayer.stop() -> clear -> setMediaItem(...).prepare().play() (usando User-Agent y Referer estándar de navegador móvil)
         → Si ExoPlayer lanza error (onPlayerError) → Reintenta una vez más la misma calidad. Si vuelve a fallar → intentandoIndiceCalidad++ → reproducirCalidadActual()
 ```
 
@@ -161,4 +162,4 @@ DULCE-BOT:
 5. **No usar youtube-dl para extracción de streams** (ya está en build.gradle pero no implementado en el flujo actual — lo hace Invidious API)
 
 ---
-*Última actualización: 2026-06-16 | Versión: 3.9.5*
+*Última actualización: 2026-06-16 | Versión: 3.9.6*

@@ -1,4 +1,4 @@
-# DulcePlay V3.9.1 (DULCE-MIND — Edición Definitiva) 🚀🎥🎧🔊🧠
+# DulcePlay V3.9.7 (DULCE-MIND — Edición Definitiva) 🚀🎥🎧🔊🧠
 
 DulcePlay es la cúspide de la ingeniería multimedia para Android. Una entidad digital diseñada para ofrecer una fidelidad de audio impecable, reproducción de video en Full HD, reproducción en segundo plano, y una inteligencia artificial real que controla la app y funciona **sin internet**.
 
@@ -6,6 +6,7 @@ DulcePlay es la cúspide de la ingeniería multimedia para Android. Una entidad 
 
 - 🧠 **DULCE-MIND (IA Local Real)**: Motor de inteligencia artificial on-device usando **Gemma 2B Instruct** via Google MediaPipe. Se descarga automáticamente por Wi-Fi (~1.4GB, solo una vez). Una vez descargado, responde preguntas de música, recomienda canciones y conversa inteligentemente **sin necesitar internet**.
 - 🔊 **Motor ExoPlayer (Media3)**: Reproducción profesional sin pausas. Soporte nativo para flujos de alta velocidad y gestión inteligente de buffer.
+- ⚙️ **Menú de Calidad Avanzado**: Extracción dinámica de múltiples calidades (Audio AAC/WebM, Video 720p/360p) con enrutamiento vía proxy para evitar bloqueos regionales o de IP.
 - 🔁 **Cola de Reproducción Inteligente (Auto-Queue)**: Carga automática de todos los resultados de búsqueda en la cola de reproducción para reproducción continua (siguiente tema automático, modo shuffle y repeat personalizables).
 - 📂 **Listas y Favoritos Offline**: Persistencia local en tiempo real usando formato JSON de alta velocidad (`LocalStorage.kt`) para almacenar favoritos y listas personalizadas que no se pierden al cerrar la app.
 - 🛠️ **Plan B de Respaldo Doble**: Extracción de streams combinada usando la API JSON de Invidious (con 6 instancias y fallback en cascada de proxy) y **extracción directa de YouTube** como Plan B de respaldo (InnerTube API con emulación de clientes de bajo nivel).
@@ -22,6 +23,7 @@ DulcePlay es la cúspide de la ingeniería multimedia para Android. Una entidad 
 |---------|--------|
 | Búsqueda YouTube | ✅ FUNCIONA |
 | Interfaz Cyber-Neon | ✅ FUNCIONA |
+| Selección de Calidad Real | ✅ IMPLEMENTADO v3.9.7 |
 | Cola de Reproducción Continua | ✅ IMPLEMENTADO v3.9 |
 | Persistencia de Favoritos y Listas (JSON) | ✅ IMPLEMENTADO v3.9 |
 | Plan B de Extracción Directa de YouTube | ✅ IMPLEMENTADO v3.9.1 |
@@ -48,7 +50,7 @@ DulcePlay es la cúspide de la ingeniería multimedia para Android. Una entidad 
 - **Lenguaje**: Kotlin + Jetpack Compose
 - **Reproductor**: Media3 / ExoPlayer
 - **IA Local**: Google MediaPipe `com.google.mediapipe:tasks-genai:0.10.27` + Gemma 2B Instruct
-- **Extracción de streams**: Invidious API v1 JSON (6 instancias con fallback de proxy) + Fallback directo YouTubei (Android VR / Android TestSuite)
+- **Extracción de streams**: Invidious API v1 JSON (6 instancias con fallback de proxy forzado) + Fallback directo YouTubei (Android VR / Android TestSuite / IOS)
 - **Validación de red**: HEAD / GET Range (1KB) antes de ExoPlayer
 - **Persistencia**: Local JSON de alta velocidad y Room Database (IPTV/Historial/Perfiles)
 - **Arquitectura**: MVVM con Shared ViewModel único
@@ -58,4 +60,4 @@ La APK debug se genera en:
 `app/build/outputs/apk/debug/app-debug.apk`
 
 ---
-*Elevando la música al Metaverso. DulcePlay V3.9.1: IA Real, Sin Internet, Sin Límites. 🇨🇴🎧🧠✨*
+*Elevando la música al Metaverso. DulcePlay V3.9.7: IA Real, Sin Internet, Sin Límites. 🇨🇴🎧🧠✨*

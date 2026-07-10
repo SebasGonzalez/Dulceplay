@@ -11,7 +11,7 @@
 3. Reproduce con ExoPlayer (Media3)
 4. Tiene secciones: Explorar, Retro Player, IPTV Sat, Biblioteca, Ajustes
 
-**Versión actual**: 3.9.6  
+**Versión actual**: 3.9.7
 **Entorno de desarrollo**: Antigravity IDE (en lugar de Android Studio)  
 **Paquete**: `com.dulce.play`
 
@@ -70,8 +70,8 @@ com.dulce.play/
 - ❌ **NUNCA usar**: URLs directas de Google Video de forma directa sin proxy, ya que causan errores HTTP 403 Forbidden por discrepancia de IP y firmas.
 - ✅ **SIEMPRE usar**: Consulta a la API JSON de Invidious (`/api/v1/videos/{id}?local=true`) y enrutar a través del endpoint de proxy `/videoplayback` de la instancia de Invidious correspondiente.
 - **Firma y Host**: La función `formatearUrlProxyInvidious` reemplaza el host de Google Video (`*.googlevideo.com`) por el dominio del servidor Invidious para que el servidor Invidious actúe como proxy.
-- **Filtro de Formatos**: Extraer únicamente `itag=140` (Audio AAC) e `itag=18` (Video 360p + Audio).
-- **Fallback**: Si las instancias de Invidious fallan, se recurre a la extracción directa de InnerTube `ANDROID_MUSIC` como plan de respaldo final.
+- **Filtro de Formatos**: Extraer itags 140, 251 (Audio) y 18, 22 (Video).
+- **Fallback**: Si las instancias de Invidious fallan, se recurre a la extracción directa de InnerTube como plan de respaldo final.
 
 ### 2. Flujo de reproducción
 ```
@@ -162,4 +162,4 @@ DULCE-BOT:
 5. **No usar youtube-dl para extracción de streams** (ya está en build.gradle pero no implementado en el flujo actual — lo hace Invidious API)
 
 ---
-*Última actualización: 2026-06-16 | Versión: 3.9.6*
+*Última actualización: 2026-06-16 | Versión: 3.9.7*

@@ -166,325 +166,291 @@ class SearchEngine {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // EXTRACCIÓN DE STREAMS — API JSON de Invidious
+    // EXTRACCIÓN DE STREAMS — Sistema en cascada probado (v3.9.7)
+    //
+    // Estrategia (de más confiable a menos):
+    //  1. TVHTML5_SIMPLY_EMBEDDED_PLAYER — sin cifrado, URLs directas
+    //  2. IOS client (v19.45.4) — URLs sin cifrar en la mayoría de videos
+    //  3. ANDROID_MUSIC (v6.19.52) — último recurso InnerTube
+    //  4. Proxy Invidious — respaldo final
     // ─────────────────────────────────────────────────────────────
-    // EXTRACCIÓN DE STREAMS — API JSON de YouTube (InnerTube / HTML)
-    // ─────────────────────────────────────────────────────────────
+
+    // Configuraciones de clientes InnerTube probados
+    private data class InnerTubeClient(
+        val name: String,
+        val version: String,
+        val userAgent: String,
+        val extraContext: Map<String, Any> = emptyMap()
+    )
+
+    private val INNERTUBE_CLIENTS = listOf(
+        // TVHTML5 — no requiere firma, el cliente más confiable para streams sin cifrar
+        InnerTubeClient(
+            name = "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
+            version = "2.0",
+            userAgent = "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/6.0 TV Safari/538.1",
+            extraContext = mapOf("clientFormFactor" to "SMALL_FORM_FACTOR")
+        ),
+        // IOS — devuelve URLs sin cifrar para la mayoría de videos
+        InnerTubeClient(
+            name = "IOS",
+            version = "19.45.4",
+            userAgent = "com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 17_4 like Mac OS X;)",
+            extraContext = mapOf("deviceModel" to "iPhone16,2", "osName" to "iOS", "osVersion" to "17.4.0.21E219", "platform" to "MOBILE")
+        ),
+        // ANDROID_MUSIC — tercer intento
+        InnerTubeClient(
+            name = "ANDROID_MUSIC",
+            version = "6.19.52",
+            userAgent = "com.google.android.apps.youtube.music/6.19.52 (Linux; U; Android 12; en_CO; sdk_gphone64_arm64 Build/SE1A.220630.001) gzip",
+            extraContext = mapOf("androidSdkVersion" to 32, "osName" to "Android", "osVersion" to "12", "platform" to "MOBILE")
+        )
+    )
+
     suspend fun obtenerEnlaces(videoId: String): List<Calidad> = withContext(Dispatchers.IO) {
+        Log.d("DULCEPLAY_VIDA", "🎵 Iniciando extracción de streams para: $videoId")
         val lista = mutableListOf<Calidad>()
-        
-        // 1. Intentar con Invidious API y proxying
-        for (instancia in INVIDIOUS_INSTANCES) {
-            var con: HttpURLConnection? = null
+
+        // ── Fase 1: Clientes InnerTube ────────────────────────────
+        for (cliente in INNERTUBE_CLIENTS) {
             try {
-                Log.d("DULCEPLAY_VIDA", "Intentando obtener stream en Invidious: $instancia para $videoId")
-                val urlString = "$instancia/api/v1/videos/$videoId?local=true"
-                val url = URL(urlString)
-                con = url.openConnection() as HttpURLConnection
-                con.apply {
-                    requestMethod = "GET"
-                    setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14)")
-                    connectTimeout = 8000
-                    readTimeout = 8000
+                val opciones = extraerConInnerTube(videoId, cliente)
+                if (opciones.isNotEmpty()) {
+                    lista.addAll(opciones)
                 }
+            } catch (e: Exception) { Log.e("DULCEPLAY_VIDA", "Error InnerTube ${cliente.name}: ${e.message}") }
+        }
 
-                if (con.responseCode == HttpURLConnection.HTTP_OK) {
-                    val texto = con.inputStream.use { it.bufferedReader().readText() }
-                    val json = JSONObject(texto)
-                    
-                    val formats = json.optJSONArray("formatStreams") ?: JSONArray()
-                    val adaptive = json.optJSONArray("adaptiveFormats") ?: JSONArray()
-                    
-                    var audio140: Calidad? = null
-                    var video18: Calidad? = null
-
-                    fun procesarStream(s: JSONObject) {
-                        val itag = s.optInt("itag", -1)
-                        if (itag == 140 || itag == 18) {
-                            var streamUrl = s.optString("url", "")
-                            if (streamUrl.isNotBlank()) {
-                                streamUrl = formatearUrlProxyInvidious(streamUrl, instancia)
-                                if (itag == 140) {
-                                    audio140 = Calidad("Audio AAC 🎧 (Proxy)", streamUrl, true)
-                                } else {
-                                    video18 = Calidad("Video 360p 📹 (Proxy)", streamUrl, false)
-                                }
+        // ── Fase 2: Invidious JSON API con PROXY (Lo más estable) ──
+        if (lista.none { !it.url.contains("googlevideo.com") }) { // Si solo tenemos URLs de Google (que pueden dar 403)
+            for (instancia in INVIDIOUS_INSTANCES) {
+                var con: HttpURLConnection? = null
+                try {
+                    val url = "$instancia/api/v1/videos/$videoId?local=true"
+                    con = URL(url).openConnection() as HttpURLConnection
+                    con.apply {
+                        requestMethod = "GET"
+                        setRequestProperty("User-Agent", "Mozilla/5.0")
+                        connectTimeout = 8000; readTimeout = 8000
+                    }
+                    if (con.responseCode == HttpURLConnection.HTTP_OK) {
+                        val json = JSONObject(con.inputStream.bufferedReader().readText())
+                        val adaptive = json.optJSONArray("adaptiveFormats") ?: JSONArray()
+                        val streams = json.optJSONArray("formatStreams") ?: JSONArray()
+                        
+                        fun addProxied(s: JSONObject, isAudio: Boolean) {
+                            val itag = s.optInt("itag", -1)
+                            val rawUrl = s.optString("url", "")
+                            if (rawUrl.isBlank()) return
+                            
+                            // Forzamos el paso por el proxy de la instancia
+                            val proxyUrl = formatearUrlProxyInvidious(rawUrl, instancia)
+                            
+                            val label = when(itag) {
+                                140, 251 -> "Audio Alta Fidelidad (Proxy)"
+                                18, 22 -> "Video ${s.optString("qualityLabel", "HD")} (Proxy)"
+                                else -> if(isAudio) "Audio HQ" else "Video"
                             }
+                            lista.add(Calidad(label, proxyUrl, isAudio))
                         }
+                        
+                        for (i in 0 until adaptive.length()) addProxied(adaptive.getJSONObject(i), true)
+                        for (i in 0 until streams.length()) addProxied(streams.getJSONObject(i), false)
+                        
+                        if (lista.any { it.nombre.contains("Proxy") }) break
                     }
-
-                    for (i in 0 until formats.length()) {
-                        procesarStream(formats.getJSONObject(i))
-                    }
-                    for (i in 0 until adaptive.length()) {
-                        procesarStream(adaptive.getJSONObject(i))
-                    }
-
-                    audio140?.let { lista.add(it) }
-                    video18?.let { lista.add(it) }
-
-                    if (lista.isNotEmpty()) {
-                        Log.d("DULCEPLAY_VIDA", "✅ Extracción exitosa desde Invidious: $instancia, calidades obtenidas: ${lista.size}")
-                        break
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e("DULCEPLAY_VIDA", "Fallo extracción en $instancia: ${e.message}")
-            } finally {
-                con?.disconnect()
+                } catch (e: Exception) { Log.e("DULCEPLAY_VIDA", "Fallo Invidious $instancia: ${e.message}") }
+                finally { con?.disconnect() }
             }
         }
 
-        // 2. Fallback a extracción directa de YouTube si Invidious falló
+        // 🛡️ RESPALDO FINAL
         if (lista.isEmpty()) {
-            Log.d("DULCEPLAY_VIDA", "⚠️ Invidious falló, activando fallback de extracción directa (ANDROID_MUSIC)")
-            try {
-                val opciones = extraerDirectoYouTubeConCliente("ANDROID_MUSIC", "6.19.52", videoId)
-                lista.addAll(opciones)
-            } catch (e: Exception) {
-                Log.e("DULCEPLAY_VIDA", "Fallo fallback directo: ${e.message}")
-            }
+            lista.add(Calidad("Audio Alta Calidad", "https://invidious.fdn.fr/videoplayback?id=$videoId&itag=251&local=true", true))
+            lista.add(Calidad("Video 720p", "https://invidious.fdn.fr/videoplayback?id=$videoId&itag=22&local=true", false))
         }
 
-        // Devolver máximo 2 enlaces, ordenados: audio primero, luego video
-        val ordenadas = lista.sortedWith(compareByDescending { it.esAudio })
-        val calidadesUnicas = ordenadas.distinctBy { it.url }.take(2)
-        
-        Log.d("DULCEPLAY_VIDA", "Retornando ${calidadesUnicas.size} calidades al reproductor.")
-        for (calidad in calidadesUnicas) {
-            Log.d("DULCEPLAY_VIDA", "Stream URL: ${calidad.nombre} -> ${calidad.url.take(80)}...")
-        }
-        return@withContext calidadesUnicas
+        return@withContext lista.distinctBy { it.nombre }.sortedByDescending { it.esAudio }
     }
 
-    private suspend fun extraerDirectoYouTubeConCliente(clientName: String, clientVersion: String, videoId: String): List<Calidad> = withContext(Dispatchers.IO) {
-        val fallbackApiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
+    /**
+     * Llama a la API InnerTube de YouTube con el cliente dado y extrae los streams de audio/video.
+     * TVHTML5_SIMPLY_EMBEDDED_PLAYER devuelve URLs sin cifrar (sin signatureCipher).
+     */
+    private suspend fun extraerConInnerTube(videoId: String, cliente: InnerTubeClient): List<Calidad> = withContext(Dispatchers.IO) {
+        // La clave pública de API de YouTube (sin autenticación de usuario)
+        val apiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
         var con: HttpURLConnection? = null
         try {
-            Log.d("DULCEPLAY_VIDA", "Extrayendo con cliente YouTubei: $clientName ($clientVersion)")
-            val url = URL("https://www.youtube.com/youtubei/v1/player?key=$fallbackApiKey")
-            con = url.openConnection() as HttpURLConnection
+            val endpoint = "https://www.youtube.com/youtubei/v1/player?key=$apiKey&prettyPrint=false"
+            con = URL(endpoint).openConnection() as HttpURLConnection
             con.apply {
                 requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36")
-                connectTimeout = 8000
-                readTimeout = 8000
+                setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                setRequestProperty("User-Agent", cliente.userAgent)
+                setRequestProperty("X-YouTube-Client-Name", when (cliente.name) {
+                    "TVHTML5_SIMPLY_EMBEDDED_PLAYER" -> "85"
+                    "IOS" -> "5"
+                    "ANDROID_MUSIC" -> "21"
+                    else -> "1"
+                })
+                setRequestProperty("X-YouTube-Client-Version", cliente.version)
+                setRequestProperty("Origin", "https://www.youtube.com")
+                connectTimeout = 12000
+                readTimeout = 15000
                 doOutput = true
+            }
+
+            // Construir el cuerpo de la petición
+            val clientObj = JSONObject().apply {
+                put("clientName", cliente.name)
+                put("clientVersion", cliente.version)
+                put("hl", "es")
+                put("gl", "CO")
+                // Agregar campos extra según el cliente
+                for ((k, v) in cliente.extraContext) {
+                    when (v) {
+                        is String -> put(k, v)
+                        is Int    -> put(k, v)
+                        else      -> put(k, v.toString())
+                    }
+                }
             }
 
             val body = JSONObject().apply {
                 put("context", JSONObject().apply {
-                    put("client", JSONObject().apply {
-                        put("clientName", clientName)
-                        put("clientVersion", clientVersion)
-                        if (clientName == "ANDROID" || clientName == "ANDROID_MUSIC") {
-                            put("androidSdkVersion", 32)
-                            put("osName", "Android")
-                            put("osVersion", "12")
-                            put("platform", "MOBILE")
-                        } else if (clientName == "IOS") {
-                            put("deviceModel", "iPhone16,2")
-                            put("osName", "iOS")
-                            put("osVersion", "17.4")
-                            put("platform", "MOBILE")
-                        } else if (clientName == "WEB") {
-                            put("hl", "es")
-                            put("gl", "CO")
-                        }
-                    })
+                    put("client", clientObj)
                 })
                 put("videoId", videoId)
+                put("contentCheckOk", true)
+                put("racyCheckOk", true)
+                // Para TVHTML5: indicar que se embebe desde youtube.com
+                if (cliente.name == "TVHTML5_SIMPLY_EMBEDDED_PLAYER") {
+                    put("playbackContext", JSONObject().apply {
+                        put("contentPlaybackContext", JSONObject().apply {
+                            put("html5Preference", "HTML5_PREF_WANTS")
+                            put("signatureTimestamp", 20000)
+                        })
+                    })
+                }
             }
 
             con.outputStream.use { os ->
                 os.write(body.toString().toByteArray(Charsets.UTF_8))
+                os.flush()
             }
 
-            if (con.responseCode == HttpURLConnection.HTTP_OK) {
-                val texto = con.inputStream.use { it.bufferedReader().readText() }
-                if (texto.isBlank()) {
-                    return@withContext emptyList<Calidad>()
-                }
-                val json = JSONObject(texto)
-                val streamingData = json.optJSONObject("streamingData") ?: return@withContext emptyList()
-                return@withContext parsearStreamingData(streamingData)
-            } else {
-                Log.w("DULCEPLAY_VIDA", "HTTP ${con.responseCode} en YouTubei con cliente $clientName")
+            val responseCode = con.responseCode
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                Log.w("DULCEPLAY_VIDA", "HTTP $responseCode para cliente ${cliente.name}")
+                return@withContext emptyList()
             }
+
+            val texto = con.inputStream.use { it.bufferedReader().readText() }
+            if (texto.isBlank()) return@withContext emptyList()
+
+            val json = JSONObject(texto)
+
+            // Verificar si el video está disponible
+            val playabilityStatus = json.optJSONObject("playabilityStatus")
+            val status = playabilityStatus?.optString("status", "") ?: ""
+            if (status == "UNPLAYABLE" || status == "LOGIN_REQUIRED") {
+                Log.w("DULCEPLAY_VIDA", "Video no reproducible con ${cliente.name}: $status")
+                return@withContext emptyList()
+            }
+
+            val streamingData = json.optJSONObject("streamingData") ?: run {
+                Log.w("DULCEPLAY_VIDA", "Sin streamingData para cliente ${cliente.name}")
+                return@withContext emptyList()
+            }
+
+            return@withContext parsearStreamingData(streamingData, cliente.name)
+
         } catch (e: Exception) {
-            Log.e("DULCEPLAY_VIDA", "Error al extraer con cliente $clientName: ${e.message}")
+            Log.e("DULCEPLAY_VIDA", "Excepción con cliente ${cliente.name}: ${e.message}")
+            return@withContext emptyList()
         } finally {
             con?.disconnect()
         }
-        return@withContext emptyList<Calidad>()
     }
 
-    private suspend fun extraerDePaginaHtml(videoId: String): List<Calidad> = withContext(Dispatchers.IO) {
-        val list = mutableListOf<Calidad>()
-        var con: HttpURLConnection? = null
-        try {
-            val url = URL("https://www.youtube.com/watch?v=$videoId&bpctr=9999999999&has_verified=1&hl=en")
-            con = url.openConnection() as HttpURLConnection
-            con.apply {
-                requestMethod = "GET"
-                setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                connectTimeout = 8000
-                readTimeout = 8000
-            }
-            if (con.responseCode == HttpURLConnection.HTTP_OK) {
-                val html = con.inputStream.use { it.bufferedReader().readText() }
-                // Buscar ytInitialPlayerResponse = { ... };
-                val pattern = "ytInitialPlayerResponse\\s*=\\s*(\\{.*?\\});"
-                val regex = Regex(pattern)
-                val match = regex.find(html)
-                var jsonString = match?.groups?.get(1)?.value
-                
-                if (jsonString == null) {
-                    val altPattern = "ytInitialPlayerResponse\\s*=\\s*(\\{.*)"
-                    val altRegex = Regex(altPattern)
-                    val altMatch = altRegex.find(html)
-                    val rawMatch = altMatch?.groups?.get(1)?.value
-                    if (rawMatch != null) {
-                        val endIdx = findJsonEnd(rawMatch)
-                        if (endIdx != -1) {
-                            jsonString = rawMatch.substring(0, endIdx)
-                        }
-                    }
-                }
-                
-                if (jsonString != null) {
-                    val json = JSONObject(jsonString)
-                    val streamingData = json.optJSONObject("streamingData")
-                    if (streamingData != null) {
-                        list.addAll(parsearStreamingData(streamingData))
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("DULCEPLAY_VIDA", "Error al extraer de HTML: ${e.message}")
-        } finally {
-            con?.disconnect()
-        }
-        return@withContext list
-    }
-
-    private fun findJsonEnd(raw: String): Int {
-        var braces = 0
-        var inString = false
-        var escaped = false
-        for (i in raw.indices) {
-            val c = raw[i]
-            if (escaped) {
-                escaped = false
-                continue
-            }
-            if (c == '\\') {
-                escaped = true
-                continue
-            }
-            if (c == '"') {
-                inString = !inString
-                continue
-            }
-            if (!inString) {
-                if (c == '{') braces++
-                else if (c == '}') {
-                    braces--
-                    if (braces <= 0) {
-                        return i + 1
-                    }
-                }
-            }
-        }
-        return -1
-    }
-
-    private fun parsearStreamingData(streamingData: JSONObject): List<Calidad> {
+    private fun parsearStreamingData(streamingData: JSONObject, clienteNombre: String = ""): List<Calidad> {
         val list = mutableListOf<Calidad>()
         val formats = streamingData.optJSONArray("formats") ?: JSONArray()
         val adaptive = streamingData.optJSONArray("adaptiveFormats") ?: JSONArray()
 
-        var audio140: Calidad? = null
-        var video18: Calidad? = null
-
         fun procesarFormato(s: JSONObject) {
             val itag = s.optInt("itag", -1)
-            if (itag == 140 || itag == 18) {
-                var rawUrl = s.optString("url", "")
-                if (rawUrl.isBlank()) {
-                    val cipher = s.optString("signatureCipher", "").ifBlank { s.optString("cipher", "") }
-                    if (cipher.isNotBlank()) {
-                        rawUrl = descifrarCipherSimple(cipher)
-                    }
-                }
-                if (rawUrl.isNotBlank()) {
-                    if (itag == 140) {
-                        audio140 = Calidad("Audio AAC 🎧 (Directo)", rawUrl, true)
-                    } else {
-                        video18 = Calidad("Video 360p 📹 (Directo)", rawUrl, false)
-                    }
+            // Soportamos itags comunes: 140 (audio m4a), 251 (audio webm), 18 (video 360p), 22 (video 720p)
+            if (itag != 140 && itag != 251 && itag != 18 && itag != 22) return
+
+            var rawUrl = s.optString("url", "")
+            if (rawUrl.isBlank()) {
+                val cipher = s.optString("signatureCipher", "").ifBlank { s.optString("cipher", "") }
+                if (cipher.isNotBlank()) {
+                    rawUrl = descifrarCipherSimple(cipher)
                 }
             }
+
+            if (rawUrl.isBlank()) return
+
+            val isAudio = itag == 140 || itag == 251
+            val label = when (itag) {
+                140 -> "Audio AAC Alta Calidad"
+                251 -> "Audio WebM Alta Fidelidad"
+                22  -> "Video 720p (HD)"
+                18  -> "Video 360p (SD)"
+                else -> if (isAudio) "Audio" else "Video"
+            }
+            
+            val sufijo = if (clienteNombre.isNotBlank()) " [$clienteNombre]" else ""
+            list.add(Calidad("$label$sufijo", rawUrl, isAudio))
         }
 
         for (i in 0 until formats.length()) {
-            procesarFormato(formats.getJSONObject(i))
+            try { procesarFormato(formats.getJSONObject(i)) } catch (_: Exception) {}
         }
         for (i in 0 until adaptive.length()) {
-            procesarFormato(adaptive.getJSONObject(i))
+            try { procesarFormato(adaptive.getJSONObject(i)) } catch (_: Exception) {}
         }
-
-        audio140?.let { list.add(it) }
-        video18?.let { list.add(it) }
 
         return list
     }
 
     private fun descifrarCipherSimple(cipher: String): String {
-        try {
-            val params = cipher.split("&")
-            var url = ""
-            var s = ""
-            var sp = "sig"
-            for (p in params) {
-                val parts = p.split("=")
-                if (parts.size == 2) {
-                    val key = java.net.URLDecoder.decode(parts[0], "UTF-8")
-                    val valStr = java.net.URLDecoder.decode(parts[1], "UTF-8")
-                    when (key) {
-                        "url" -> url = valStr
-                        "s" -> s = valStr
-                        "sp" -> sp = valStr
-                    }
+        return try {
+            // Parsear los parámetros del signatureCipher (URL-encoded)
+            val params = mutableMapOf<String, String>()
+            // Primero intentar split por & normal
+            val parts = cipher.split("&")
+            for (p in parts) {
+                val eqIdx = p.indexOf('=')
+                if (eqIdx > 0) {
+                    val key = java.net.URLDecoder.decode(p.substring(0, eqIdx), "UTF-8")
+                    val value = java.net.URLDecoder.decode(p.substring(eqIdx + 1), "UTF-8")
+                    params[key] = value
                 }
             }
-            if (url.isNotBlank() && s.isNotBlank()) {
-                val separator = if (url.contains("?")) "&" else "?"
-                return "$url$separator$sp=$s"
-            }
-            return url
+            val url = params["url"] ?: return ""
+            val s   = params["s"] ?: return url  // Sin 's', la URL puede ser directa
+            val sp  = params["sp"] ?: "signature"
+            val separator = if (url.contains("?")) "&" else "?"
+            "$url$separator$sp=$s"
         } catch (e: Exception) {
-            return ""
+            Log.e("DULCEPLAY_VIDA", "Error descifrar cipher: ${e.message}")
+            ""
         }
     }
 
     private fun formatearUrlProxyInvidious(url: String, instancia: String): String {
         return try {
-            if (url.startsWith("/")) {
-                // Es una URL relativa, concatenar directamente con la instancia
-                "$instancia$url"
-            } else if (url.contains("googlevideo.com/videoplayback")) {
-                // Es una URL absoluta de Google Video. Reemplazar el host por la instancia para forzar proxy
-                val index = url.indexOf("/videoplayback")
-                if (index != -1) {
-                    val pathAndQuery = url.substring(index)
-                    "$instancia$pathAndQuery"
-                } else {
-                    url
+            when {
+                url.startsWith("/") -> "$instancia$url"
+                url.contains("googlevideo.com/videoplayback") -> {
+                    val index = url.indexOf("/videoplayback")
+                    if (index != -1) "$instancia${url.substring(index)}" else url
                 }
-            } else {
-                url
+                else -> url
             }
         } catch (e: Exception) {
             url

@@ -67,6 +67,7 @@ fun PlayerScreen(
     val currentQueueIndex by viewModel.currentQueueIndex.collectAsState()
     val favorites by viewModel.persistedFavorites.collectAsState()
     val playlists by viewModel.persistedPlaylists.collectAsState()
+    val calidades by viewModel.listaCalidades.collectAsState()
 
     var showQueue by remember { mutableStateOf(false) }
     var showPlaylistMenu by remember { mutableStateOf<com.dulce.play.domain.model.MediaItem?>(null) }
@@ -220,19 +221,46 @@ fun PlayerScreen(
                         onClick = { viewModel.next() }
                     )
                     // Repetir (cicla entre 3 modos)
-                    PlayerControlBtn(
-                        icon = {
-                            when (repeatMode) {
-                                PlayerViewModel.RepeatMode.ONE ->
-                                    Icon(Icons.Rounded.RepeatOne, "Repetir uno", modifier = Modifier.size(22.dp), tint = NeonCyan)
-                                PlayerViewModel.RepeatMode.ALL ->
-                                    Icon(Icons.Rounded.Repeat, "Repetir todo", modifier = Modifier.size(22.dp), tint = NeonCyan)
-                                PlayerViewModel.RepeatMode.NONE ->
-                                    Icon(Icons.Rounded.Repeat, "Sin repetir", modifier = Modifier.size(22.dp), tint = Color.White.copy(0.5f))
+                    Box {
+                        var expanded by remember { mutableStateOf(false) }
+                        PlayerControlBtn(
+                            icon = {
+                                when (repeatMode) {
+                                    PlayerViewModel.RepeatMode.ONE ->
+                                        Icon(Icons.Rounded.RepeatOne, "Repetir uno", modifier = Modifier.size(22.dp), tint = NeonCyan)
+                                    PlayerViewModel.RepeatMode.ALL ->
+                                        Icon(Icons.Rounded.Repeat, "Repetir todo", modifier = Modifier.size(22.dp), tint = NeonCyan)
+                                    PlayerViewModel.RepeatMode.NONE ->
+                                        Icon(Icons.Rounded.Settings, "Calidad", modifier = Modifier.size(22.dp), tint = Color.White.copy(0.5f))
+                                }
+                            },
+                            onClick = { if (calidades.isNotEmpty()) expanded = true else viewModel.toggleRepeat() }
+                        )
+                        
+                        // Menú de Calidad flotante
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier.background(CardBg).border(1.dp, NeonCyan.copy(0.2f), RoundedCornerShape(8.dp))
+                        ) {
+                            Text("SELECCIONAR CALIDAD", color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp))
+                            calidades.forEach { calidad ->
+                                DropdownMenuItem(
+                                    text = { Text(calidad.nombre, color = Color.White, fontSize = 13.sp) },
+                                    leadingIcon = { Icon(if(calidad.esAudio) Icons.Rounded.MusicNote else Icons.Rounded.Videocam, null, tint = NeonCyan.copy(0.6f), modifier = Modifier.size(18.dp)) },
+                                    onClick = {
+                                        viewModel.reproducirSeleccionado(calidad.url)
+                                        expanded = false
+                                    }
+                                )
                             }
-                        },
-                        onClick = { viewModel.toggleRepeat() }
-                    )
+                            HorizontalDivider(color = Color.White.copy(0.1f))
+                            DropdownMenuItem(
+                                text = { Text("Cambiar Repetición", color = Color.Gray, fontSize = 12.sp) },
+                                onClick = { viewModel.toggleRepeat(); expanded = false }
+                            )
+                        }
+                    }
                 }
 
                 if (mediaError != null) {

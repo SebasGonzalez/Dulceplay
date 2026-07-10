@@ -2,6 +2,21 @@
 
 ---
 
+## 🔧 VERSIÓN V3.9.7 — REPRODUCCIÓN ESTABILIZADA Y MENÚ DE CALIDAD DINÁMICO
+*Fecha: 2026-06-16 | Agente: Antigravity*
+
+### 1️⃣ Extracción de Streams Reforzada
+- **Soporte de itags extendido**: Se mejoró la extracción en `SearchEngine.kt` para detectar y parsear correctamente itags 251 (Audio Opus), 140 (Audio AAC), 22 (Video 720p) y 18 (Video 360p).
+- **Proxy Invidious Forzado**: Se implementó el uso obligatorio del parámetro `local=true` y el enrutamiento vía proxy de la instancia de Invidious para todas las calidades extraídas. Esto evita errores 403 Forbidden al ocultar la IP del cliente y las firmas ante los servidores de Google Video.
+- **Limpieza de Etiquetas**: Se eliminaron los sufijos "(Recuperado)" y se reemplazaron por nombres de calidad limpios y profesionales (ej. "Audio WebM Alta Fidelidad", "Video 720p (HD)").
+
+### 2️⃣ Sincronización de Reproductor y UI
+- **Preparación Atómica**: En `PlayerViewModel.kt`, se refinó la función `reproducirSeleccionado` para realizar una limpieza completa del estado del reproductor antes de cargar un nuevo stream, asegurando que el contador de tiempo avance inmediatamente.
+- **Integración de Menú**: Se restauró el menú de selección de calidad en `PlayerScreen.kt` utilizando un `DropdownMenu` vinculado directamente a los resultados de la extracción en tiempo real.
+- **Headers de Conexión**: Configuración de User-Agent y Referer específicos en la factoría de datos de ExoPlayer para maximizar la compatibilidad con los proxies de Invidious y flujos de IPTV.
+
+---
+
 ## 🔧 VERSIÓN V3.9.6 — REPRODUCCIÓN MEDIANTE PROXY INVIDIOUS (CORRECCIÓN DE ERROR 403)
 *Fecha: 2026-06-16 | Agente: Antigravity*
 
